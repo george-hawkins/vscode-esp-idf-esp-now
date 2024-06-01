@@ -176,13 +176,79 @@ Finally, I pressed the _ESP-IDF Monitor_ icon and could watch the output of my p
 
 That was it
 
----
+OpenOCD
+-------
 
-Getting OpenOCD working would be nice if possible for debugging.
+When I tried using the _JTAG_ flashing method and let the ESP-IDF extension try and start OpenOCD, it failed with:
 
----
+```
+Error: libusb_open() failed with LIBUSB_ERROR_ACCESS
+Error: esp_usb_jtag: could not find or open device!
+```
 
-TODO:
+You can run the ESP-IDF OpenOCD from the command line like so:
+
+```
+$ cd ~/.espressif/tools/openocd-esp32/v0.12.0-esp32-20230921/openocd-esp32
+$ ./bin/openocd -f share/openocd/scripts/board/esp32c3-builtin.cfg 
+```
+
+If you look at the environment variables set up for the _ESP-IDF Terminal_ in VS Code, you'll see you can also specify `OPENOCD_SCRIPTS` and do:
+
+```
+$ export OPENOCD_SCRIPTS=$HOME/.espressif/tools/openocd-esp32/v0.12.0-esp32-20230921/openocd-esp32/share/openocd/scripts
+$ ./bin/openocd -f board/esp32c3-builtin.cfg 
+```
+
+It's just a permissioning problem, OpenOCD wants to open the USB device and not just the assocate tty device.
+
+So, after plugging in and out my device and looking at `/var/log/syslog` to see:
+
+```
+Jun  1 15:25:53 joebloggs-machine kernel: [96952.231212] usb 1-7.2: New USB device found, idVendor=303a, idProduct=1001, bcdDevice= 1.01
+Jun  1 15:25:53 joebloggs-machine kernel: [96952.231227] usb 1-7.2: New USB device strings: Mfr=1, Product=2, SerialNumber=3
+Jun  1 15:25:53 joebloggs-machine kernel: [96952.231233] usb 1-7.2: Product: USB JTAG/serial debug unit
+Jun  1 15:25:53 joebloggs-machine kernel: [96952.231237] usb 1-7.2: Manufacturer: Espressif
+```
+
+I added the following line to `/etc/udev/rules.d/50-serial-ports.rules`:
+
+```
+ATTRS{idVendor}=="303a", ATTRS{idProduct}=="1001", MODE="0660", TAG+="uaccess"
+```
+
+I.e. with `idVendor` and `idProduct` matching the values seen in `syslog`.
+
+Now, on starting OpenOCD, everything worked fine:
+
+```
+$ ./bin/openocd -f board/esp32c3-builtin.cfg 
+Open On-Chip Debugger v0.12.0-esp32-20230921 (2023-09-21-13:41)
+Licensed under GNU GPL v2
+For bug reports, read
+	http://openocd.org/doc/doxygen/bugs.html
+Info : only one transport option; autoselecting 'jtag'
+Info : esp_usb_jtag: VID set to 0x303a and PID to 0x1001
+Info : esp_usb_jtag: capabilities descriptor set to 0x2000
+Info : Listening on port 6666 for tcl connections
+Info : Listening on port 4444 for telnet connections
+Info : esp_usb_jtag: serial (64:E8:33:88:A6:20)
+Info : esp_usb_jtag: Device found. Base speed 40000KHz, div range 1 to 255
+Info : clock speed 40000 kHz
+Info : JTAG tap: esp32c3.cpu tap/device found: 0x00005c25 (mfg: 0x612 (Espressif Systems), part: 0x0005, ver: 0x0)
+Info : [esp32c3] datacount=2 progbufsize=16
+Info : [esp32c3] Examined RISC-V core; found 1 harts
+Info : [esp32c3]  XLEN=32, misa=0x40101104
+Info : starting gdb server for esp32c3 on 3333
+Info : Listening on port 3333 for gdb connections
+```
+
+I killed it and switched the flash method from _UART_ to _JTAG_ and flashing worked.
+
+This meant, I could now set breakpoints in `blink_example_main.c`, select _Run and Debug_ and just click the _Start Debugging_ icon shown to the left of the dropdown showing "Launch". Everything worked as expected - super!
+
+TODO
+----
 
 * Wire up two SuperMini boards so that I can connect a UART-to-USB converter to both and use those for serial input/output while also monitoring the program via USB.
 * Then get the ESP-NOW component's [get started](https://github.com/espressif/esp-now/tree/master/examples/get-started) example going on both boards (create the project via the IDE method used above to create a new project from an example or from the command line as described [here](https://github.com/espressif/esp-now/blob/master/README.md#example)).
