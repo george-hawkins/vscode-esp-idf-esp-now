@@ -254,3 +254,76 @@ TODO
 * Then get the ESP-NOW component's [get started](https://github.com/espressif/esp-now/tree/master/examples/get-started) example going on both boards (create the project via the IDE method used above to create a new project from an example or from the command line as described [here](https://github.com/espressif/esp-now/blob/master/README.md#example)).
 * I don't think the ESP-NOW component's [user guide](https://github.com/espressif/esp-now/blob/master/User_Guide.md) contains anything very useful - it just details the usual build steps etc. and gives some very high level overview of the main API and the sibling APIs like _Provision_.
 * Look into `WIFI_PROTOCOL_LR` as seen in the non-component based ESP-NOW [`espnow_example_main.c`](https://github.com/espressif/esp-idf/blob/master/examples/wifi/espnow/main/espnow_example_main.c). Will ESP-NOW automatically use `WIFI_PROTOCOL_LR` even if all the other protocols are also enabled (as is done in the example)?
+
+Lot's of tutorials and posts (e.g. this [one](https://www.esp32.com/viewtopic.php?t=12772)) say it's necessary to call `esp_wifi_set_ps(WIFI_PS_NONE)` but I believe this is only relevant if you're using Wi-Fi and ESP-NOW at the same time.
+
+Finding the clearest part of the spectrum
+-----------------------------------------
+
+For the ideal channel, I think you want to be able to look at the unmodulated RF noise floor and choose the area of the spectrum showing the least "energy".
+
+Annoyingly, it looks like the ESP32 _may_ be able to do this to some degree but doesn't expose this ability.
+
+The original ESP32 specifications (from back in 2015) say, in the Wi-Fi section:
+
+> Adaptive rate fallback algorithm sets the optimal transmission rate and transmit power based on actual Signal Noise Ratio (SNR) and packet loss information.
+
+But this _may_ just mean the usual ability to scan for APs and find the one offering the highest signal strength.
+
+And the [current ESP32 datasheet](https://www.espressif.com/sites/default/files/documentation/esp32_datasheet_en.pdf) says in the class bluetooth section that it supports:
+
+> Adaptive Frequency Hopping and Channel assessment.
+
+The Bluetooth standards website says:
+
+> One of the techniques Bluetooth technology uses to overcome interference and find a clear transmission path that avoids packet collision is the application of a form of frequency-hopping spread spectrum (FHSS) called adaptive frequency hopping (AFH). Bluetooth divides the frequency band into smaller channels (e.g. 40 channels in the case of Bluetooth Low Energy) and rapidly hops between those channels when transmitting packets. To further reduce the chance of interference, Bluetooth adapts its hopping sequence. Channels that are noisy and busy are dynamically tracked and avoided when sending packets.
+
+But maybe for this or similar Wi-Fi abilities to work you actually have to be transmitting (and noticing the noise simply as a product of packets getting dropped).
+
+There are intriguing mentions of noise in the ESP-IDF:
+
+```
+components/esp_rom/esp32c3/ld/esp32c3.rom.eco7.ld:rom1_set_noise_floor = 0x400019e8;
+components/esp_rom/esp32c3/ld/esp32c3.rom.ld:rom_check_noise_floor = 0x40001920;
+components/esp_rom/esp32c3/ld/esp32c3.rom.ld:rom_noise_floor_auto_set = 0x4000197c;
+components/esp_rom/esp32c3/ld/esp32c3.rom.ld:rom_set_noise_floor = 0x400019e8;
+...
+components/wpa_supplicant/src/common/bss.c:	dst->noise = src->noise;
+components/wpa_supplicant/src/common/bss.h:	/** Noise level */
+components/wpa_supplicant/src/common/bss.h:	int noise;
+components/wpa_supplicant/src/common/scan.h: * Noise floor values to use when we have signal strength
+components/wpa_supplicant/src/common/scan.h: * measurements, but no noise floor measurements. These values were
+components/wpa_supplicant/src/common/scan.h:#define DEFAULT_NOISE_FLOOR_2GHZ (-89)
+components/wpa_supplicant/src/common/wpa_ctrl.h:#define WPA_BSS_MASK_NOISE		BIT(6)
+components/wpa_supplicant/src/drivers/driver.h: * @noise: noise level
+components/wpa_supplicant/src/drivers/driver.h: * @snr: Signal-to-noise ratio in dB (calculated during scan result processing)
+components/wpa_supplicant/src/drivers/driver.h:	int noise;
+components/wpa_supplicant/esp_supplicant/src/esp_scan.c:    res->noise = 0;
+components/bt/esp_ble_mesh/models/common/include/mesh/device_property.h: * | Present Ambient Noise                                    | 0x0079 | Noise                                     |  1   |
+components/bt/esp_ble_mesh/models/common/include/mesh/device_property.h:#define BLE_MESH_PRESENT_AMBIENT_NOISE                                      0x0079
+components/bt/esp_ble_mesh/models/common/include/mesh/device_property.h:#define BLE_MESH_PRESENT_AMBIENT_NOISE_LEN                                      1
+components/bt/esp_ble_mesh/models/common/device_property.c:    { BLE_MESH_PRESENT_AMBIENT_NOISE,     
+...
+components/esp_wifi/include/local/esp_wifi_types_native.h:    signed noise_floor: 8;        /**< noise floor of Radio Frequency Module(RF). unit: dBm*/
+components/esp_wifi/include/esp_wifi_he_types.h:    unsigned noise_floor: 8;                      /**< the noise floor of the reception frame */
+```
+
+And a few mentions of SNR:
+
+```
+components/esp_rom/esp32c3/ld/esp32c3.rom.ld:rcUpdateAckSnr = 0x40001774;
+...
+components/esp_wifi/include/esp_private/esp_wifi_he_private.h:float esp_test_get_bfr_avgsnr(void);
+```
+
+To really look at the spectrum you need a spectrum analyzer and these don't come cheap.
+
+There have been no end of modules that rely on a laptop to provide the UI rather than the classical all-in-one spectrum analyzer. E.g. the Wi-Spy.
+
+But there doesn't seem to be anything really convincing that's still available in the sub-US$100 range.
+
+Andreas Spiess reviews a common module on AliExpress - the LTDZ 35-4400M - [here](https://www.youtube.com/watch?v=PRsaGEk-EsQ) but in the end he recommends an all-in-one unit with its own screen, the tinySA Ultra (he recommends it as a "much better product").
+
+And it came up again and again in my searches. The tinySA site is [here](https://tinysa.org/wiki/pmwiki.php) and they link to this AliExpress [product page](https://www.aliexpress.com/item/1005004934403303.html) as selling genuine tinySA Ultras - for around US$120 plus an addtional US$15 for shipping.
+
+Spiess's video is good introduction to how to use such devices.
