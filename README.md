@@ -108,7 +108,7 @@ Both looked fine and from a JSON point of view both were parseable (confirmed wi
 
 **Update:** I think this issue is that you have to do at least one build (see below) before this file is properly updated to reflect the current state of things. This seems to be confirmed in the ESP-IDF extension's documentation for the [`c_cpp_properties.json` file](https://github.com/espressif/vscode-esp-idf-extension/blob/master/docs/C_CPP_CONFIGURATION.md):
 
-> For the default configuration, you must build your project beforehand in order to generate `${workspaceFolder}/build/compile_commands.json` (where `${workspaceFolder}` is your project directory). 
+> For the default configuration, you must build your project beforehand in order to generate `${workspaceFolder}/build/compile_commands.json` (where `${workspaceFolder}` is your project directory).
 
 ---
 
@@ -162,6 +162,8 @@ This opens a terminal-based interface to the SDK Configuration and here all the 
 
 Now, press the _Build_ icon. Note: there are two _Build_ icons in the bottom bar, one that looks like a tin can (which is also somewhat like the traditional symbol for a DB) and another one that looks like a cog wheel and has _Build_ written beside it. I used the first clearly ESP-IDF related one, I'm not sure what the second one is for.
 
+**Update:** now rather than a tin-can-like icon, it looks like a spanner.
+
 If interested, open the command paletter and search for "ESP-IDF: Size Analysis of the Binaries" and see how big your binary is relative to your device's available memory. If you click the _Detailed_ button, you can also see a breakdown of what's taking up all the space.
 
 ---
@@ -190,14 +192,14 @@ You can run the ESP-IDF OpenOCD from the command line like so:
 
 ```
 $ cd ~/.espressif/tools/openocd-esp32/v0.12.0-esp32-20230921/openocd-esp32
-$ ./bin/openocd -f share/openocd/scripts/board/esp32c3-builtin.cfg 
+$ ./bin/openocd -f share/openocd/scripts/board/esp32c3-builtin.cfg
 ```
 
 If you look at the environment variables set up for the _ESP-IDF Terminal_ in VS Code, you'll see you can also specify `OPENOCD_SCRIPTS` and do:
 
 ```
 $ export OPENOCD_SCRIPTS=$HOME/.espressif/tools/openocd-esp32/v0.12.0-esp32-20230921/openocd-esp32/share/openocd/scripts
-$ ./bin/openocd -f board/esp32c3-builtin.cfg 
+$ ./bin/openocd -f board/esp32c3-builtin.cfg
 ```
 
 It's just a permissioning problem, OpenOCD wants to open the USB device and not just the assocate tty device.
@@ -222,7 +224,7 @@ I.e. with `idVendor` and `idProduct` matching the values seen in `syslog`.
 Now, on starting OpenOCD, everything worked fine:
 
 ```
-$ ./bin/openocd -f board/esp32c3-builtin.cfg 
+$ ./bin/openocd -f board/esp32c3-builtin.cfg
 Open On-Chip Debugger v0.12.0-esp32-20230921 (2023-09-21-13:41)
 Licensed under GNU GPL v2
 For bug reports, read
@@ -246,6 +248,80 @@ Info : Listening on port 3333 for gdb connections
 I killed it and switched the flash method from _UART_ to _JTAG_ and flashing worked.
 
 This meant, I could now set breakpoints in `blink_example_main.c`, select _Run and Debug_ and just click the _Start Debugging_ icon shown to the left of the dropdown showing "Launch". Everything worked as expected - super!
+
+ESP-NOW component examples
+--------------------------
+
+Go to the _ESP-IDF Welcome_ tab, click the _Show examples_ button - at the top of the examples page it says "For external components examples, check _IDF Component Registry_", click the _IDF Component Registry_ and enter "esp-now" in the search field there. _espressif/esp-now_ should be the first result, click that and then go to its _Examples_ tab.
+
+Click on _get-started_ and then click the _Create project from this example_ button. On my Linux machine, the modal dialog that asks you to select a _parent_ directory for the new project opened behind the main VS Code so, giving the impression VS Code had just hung until I found and switched to the dialog.
+
+Or just run:
+
+```
+$ idf.py create-project-from-example "espressif/esp-now:get-started"
+```
+
+Then I activated the `venv` and configured things:
+
+```
+$ source ~/.espressif/python_env/idf5.2_py3.10_env/bin/activate
+$ idf.py menuconfig
+```
+
+There's actually nothing interesting to configure here (the project's `README` says you can configured the UART that's used but actually that's hardcoded).
+
+Then I pressed the chip icon in the bottom bar to set the _Device Target_ to _esp32c3_ and selected USB-JTAG as the method to interact with it.
+
+I plugged in my board and oddly it wasn't auto-detected so, I had to click the _Port_ icon and select it.
+
+Then I click the _Build_ button (spanner icon in bottom bar) and then clicked the _Flash_ button (initially, the OpenOCD step failed but it was because somehow VS Code had already started an OpenOCD instance, that had taken the 6666 port, and it failed on trying to start a second instance - I quit VS Code, killed the surviving OpenOCD process and, on restarting VS Code, all worked fine).
+
+I flashed the code to a second ESP32C3 board.
+
+Note: to debug, I found that rather than the debug icon in the bottom bar, I had to use the normal _Run and Debug_ button (left-hand gutter), click the link to create a `launch.json` and then I could run the resulting "ESP-IDF Debug: Launch" launch configuration.
+
+I assumed, I'd be able to open the monitor and type stuff and have it broadcast and picked up by the other board. But typing into a serial connection created via USB didn't work - I'm not sure why. Instead, I had to connect a UART-to-USB converter (I used this [one](https://www.aliexpress.com/item/1005004399796277.html) from WeAct) to pins 21 (TX) and 20 (RX) of the board.
+
+Then I could open the device for the UART-to-USB converter:
+
+```
+$ screen /dev/ch343p-usb-serial 115200
+```
+
+And then the device for the other board:
+
+```
+$ screen /dev/esp-usb-serial1 115200
+```
+
+And type into the `screen` session for the UART-to-USB converter and see this:
+
+```
+I (4347754) app_main: espnow_send, count: 60, size: 1, data: f
+I (4348024) app_main: espnow_send, count: 61, size: 1, data: o
+I (4348214) app_main: espnow_send, count: 62, size: 1, data: o
+I (4348544) app_main: espnow_send, count: 63, size: 1, data: b
+I (4348694) app_main: espnow_send, count: 64, size: 1, data: a
+I (4348924) app_main: espnow_send, count: 65, size: 1, data: r
+```
+
+And see it received in the other `screen` session like so:
+
+```
+I (4361687) app_main: espnow_recv, <60> [40:4c:ca:fa:f6:a8][1][-46][1]: f
+I (4361957) app_main: espnow_recv, <61> [40:4c:ca:fa:f6:a8][1][-38][1]: o
+I (4362147) app_main: espnow_recv, <62> [40:4c:ca:fa:f6:a8][1][-46][1]: o
+I (4362477) app_main: espnow_recv, <63> [40:4c:ca:fa:f6:a8][1][-46][1]: b
+I (4362627) app_main: espnow_recv, <64> [40:4c:ca:fa:f6:a8][1][-46][1]: a
+I (4362857) app_main: espnow_recv, <65> [40:4c:ca:fa:f6:a8][1][-46][1]: r
+```
+
+If I pasted text into the first session, I could send more than a single character per message.
+
+If I opened a `screen` session corresponding to the USB port of the board that was also connected to the UART-to-USB converter, I could see the same output there as the output echoed in the UART-to-USB converter `screen` session but pressing keys in that session (or in the session corresponding to the second board) didn't result in anything.
+
+TODO: see how my MicroPython read from UART0 works under the covers.
 
 TODO
 ----
