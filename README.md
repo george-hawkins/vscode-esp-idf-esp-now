@@ -321,7 +321,7 @@ If I pasted text into the first session, I could send more than a single charact
 
 If I opened a `screen` session corresponding to the USB port of the board that was also connected to the UART-to-USB converter, I could see the same output there as the output echoed in the UART-to-USB converter `screen` session but pressing keys in that session (or in the session corresponding to the second board) didn't result in anything.
 
-**Update:** it turns out that the relationship between the hardware UART0 and the USB serial interface are weaker than I thought. I think it's more a case of things being actively copied from one to the other rather than them being separate views on the same thing. On looking at how the underlying, I found its using the low-level function `usb_serial_jtag_ll_read_rxfifo` (see [`usb_serial_jtag.c:54`](https://github.com/micropython/micropython/blob/f74131134c7af52638348c65ecf1be5e769a5f4b/ports/esp32/usb_serial_jtag.c#L54)). After a little more digging I found that in general, you shouldn't use this function directly but should instead use `usb_serial_jtag_read_bytes`.
+**Update:** it turns out that the relationship between the hardware UART0 and the USB serial interface are weaker than I thought. I think it's more a case of things being actively copied from one to the other rather than them being separate views on the same thing. On looking at how the underlying C code in MicroPython works, I found its using the low-level function `usb_serial_jtag_ll_read_rxfifo` (see [`usb_serial_jtag.c:54`](https://github.com/micropython/micropython/blob/f74131134c7af52638348c65ecf1be5e769a5f4b/ports/esp32/usb_serial_jtag.c#L54)). After a little more digging I found that in general, you shouldn't use this function directly but should instead use `usb_serial_jtag_read_bytes`.
 
 I then found that fortunately a example for this functionality had just fairly recently been added to the esp-idf repo in [`examples/peripherals/usb_serial_jtag/usb_serial_jtag_echo`](https://github.com/espressif/esp-idf/tree/master/examples/peripherals/usb_serial_jtag/usb_serial_jtag_echo).
 
@@ -352,6 +352,25 @@ sI (135727) Recv str: : 0x3fc933ac   73                                         
 ```
 
 Where the first character is the just the character you entered being echoed by `usb_serial_jtag_read_bytes` and the rest of the line is output from the `ESP_LOG_BUFFER_HEXDUMP` call.
+
+**IMPORTANT:**
+
+* `usb_serial_jtag_read_bytes` is only supported by the S3, C3 and later chips (see supported targets listed for the [echo example](https://github.com/espressif/esp-idf/tree/master/examples/peripherals/usb_serial_jtag/usb_serial_jtag_echo)).
+* An alternative is TinyUSB but this supported by an even more limited subset of chips with just the S3 from the commonly used ones (see the supported targets for the [TinyUSB serial device example](https://github.com/espressif/esp-idf/tree/master/examples/peripherals/usb/device/tusb_serial_device)).
+* For the classic ESP32, I think the hardware UART0 is really the same thing as one sees via USB, i.e. boards just route the hardware UART0 out via the UART-to-USB chip and so in this case one can just use `uart_read_bytes` as in the [UART echo example](https://github.com/espressif/esp-idf/tree/master/examples/peripherals/uart/uart_echo) (for which all targets are supported).
+
+This lines up with the `#define`s one sees in the MicroPython and what one sees around the lines of code that put stuff into the `stdin` ring buffer:
+
+```
+$ cd .../micropython/ports/esp32
+$ fgrep -r stdin | fgrep put
+uart.c:            ringbuf_put(&stdin_ringbuf, rbuf[i]);
+usb_serial_jtag.c:            ringbuf_put(&stdin_ringbuf, rx_buf[i]);
+usb.c:                ringbuf_put(&stdin_ringbuf, usb_rx_buf[i]);
+mphalport.c:    if ((poll_flags & MP_STREAM_POLL_RD) && stdin_ringbuf.iget != stdin_ringbuf.iput) {
+```
+
+So, that means you either support both reading from the hardware UART0 and using `usb_serial_jtag_read_bytes` or you just support `usb_serial_jtag_read_bytes` and don't support the classic ESP32 or those boards that use the C3 and later but which use a UART-to-USB chip rather than the builtin USB support (for whatever reason, there are various boards that do this).
 
 TODO
 ----
