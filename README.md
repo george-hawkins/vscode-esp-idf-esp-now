@@ -279,9 +279,9 @@ Then I click the _Build_ button (spanner icon in bottom bar) and then clicked th
 
 I flashed the code to a second ESP32C3 board.
 
-Note: to debug, I found that rather than the debug icon in the bottom bar, I had to use the normal _Run and Debug_ button (left-hand gutter), click the link to create a `launch.json` and then I could run the resulting "ESP-IDF Debug: Launch" launch configuration.
+Note: to debug, I found that rather than the debug icon in the bottom bar, I had to use the normal _Run and Debug_ button (left-hand gutter), click the link to "create a launch.json file", select ESP-IDF and then I could run the resulting "ESP-IDF Debug: Launch" launch configuration.
 
-I assumed, I'd be able to open the monitor and type stuff and have it broadcast and picked up by the other board. But typing into a serial connection created via USB didn't work - I'm not sure why. Instead, I had to connect a UART-to-USB converter (I used this [one](https://www.aliexpress.com/item/1005004399796277.html) from WeAct) to pins 21 (TX) and 20 (RX) of the board.
+I assumed, I'd be able to open the monitor and type stuff and have it broadcast and picked up by the other board. But typing into a serial connection created via USB didn't work (see below for explanation). Instead, I had to connect a UART-to-USB converter (I used this [one](https://www.aliexpress.com/item/1005004399796277.html) from WeAct) to pins 21 (TX) and 20 (RX) of the board.
 
 Then I could open the device for the UART-to-USB converter:
 
@@ -321,7 +321,37 @@ If I pasted text into the first session, I could send more than a single charact
 
 If I opened a `screen` session corresponding to the USB port of the board that was also connected to the UART-to-USB converter, I could see the same output there as the output echoed in the UART-to-USB converter `screen` session but pressing keys in that session (or in the session corresponding to the second board) didn't result in anything.
 
-TODO: see how my MicroPython read from UART0 works under the covers.
+**Update:** it turns out that the relationship between the hardware UART0 and the USB serial interface are weaker than I thought. I think it's more a case of things being actively copied from one to the other rather than them being separate views on the same thing. On looking at how the underlying, I found its using the low-level function `usb_serial_jtag_ll_read_rxfifo` (see [`usb_serial_jtag.c:54`](https://github.com/micropython/micropython/blob/f74131134c7af52638348c65ecf1be5e769a5f4b/ports/esp32/usb_serial_jtag.c#L54)). After a little more digging I found that in general, you shouldn't use this function directly but should instead use `usb_serial_jtag_read_bytes`.
+
+I then found that fortunately a example for this functionality had just fairly recently been added to the esp-idf repo in [`examples/peripherals/usb_serial_jtag/usb_serial_jtag_echo`](https://github.com/espressif/esp-idf/tree/master/examples/peripherals/usb_serial_jtag/usb_serial_jtag_echo).
+
+### usb_serial_jtag_echo
+
+Initially, I didn't get any console output from the `ESP_LOGx` calls. On comparing my `sdkconfig` file with one from a project where such calls worked as expected, I worked out the solution to be...
+
+Right-click on `sdkconfig` in the _Explorer_ panel and select _SDK Configuration Editor_, search for "secondary" and change the _Channel for console secondary output_ from _No secondary console_ to _USB_SERIAL_JTAG_PORT_.
+
+Even after having done this, things didn't work first time, I had to press the RESET button before I got both the `usb_serial_jtag_write_bytes` output and the `ESP_LOGx` output as expected.
+
+For whatever reason, this example comes with a `sdkconfig.defaults` file that contains the single line `CONFIG_ESP_CONSOLE_SECONDARY_NONE=y` and this is the cause of the issue. I guess the idea was maybe that you should see keys echoed via the USB serial port and see the log output via the physical UART pins.
+
+But I saw neither until I made this change - if I used the debugger, I could see that it was reading my key presses successfully with `usb_serial_jtag_read_bytes` but oddly `usb_serial_jtag_write_bytes` didn't seem to write them back, i.e. echo them.
+
+Note: changing `ESP_CONSOLE_SECONDARY_USB_SERIAL_JTAG` is mentioned somewhat cryptically in the example's [`README`](https://github.com/espressif/esp-idf/tree/master/examples/peripherals/usb_serial_jtag/usb_serial_jtag_echo).
+
+Anyway, once done, in addition to the inital firmware output (which showed without issue before this change), you also see log output from the program like:
+
+```
+I (477) usb_serial_jtag echo: USB_SERIAL_JTAG init done
+```
+
+And then if you press any key, you see:
+
+```
+sI (135727) Recv str: : 0x3fc933ac   73                                                |s|
+```
+
+Where the first character is the just the character you entered being echoed by `usb_serial_jtag_read_bytes` and the rest of the line is output from the `ESP_LOG_BUFFER_HEXDUMP` call.
 
 TODO
 ----
