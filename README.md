@@ -433,6 +433,23 @@ mphalport.c:    if ((poll_flags & MP_STREAM_POLL_RD) && stdin_ringbuf.iget != st
 
 So, that means you either support both reading from the hardware UART0 and using `usb_serial_jtag_read_bytes` or you just support `usb_serial_jtag_read_bytes` and don't support the classic ESP32 or those boards that use the C3 and later but which use a UART-to-USB chip rather than the builtin USB support (for whatever reason, there are various boards that do this).
 
+### UART echo
+
+I opened the UART echo example.
+
+I switch to a [ESP32-S3-DevKitC](https://docs.espressif.com/projects/esp-idf/en/stable/esp32s3/hw-reference/esp32s3/user-guide-devkitc-1.html) as this has two USB connectors:
+
+* One labelled USB that goes through to the native S3 USB support.
+* The other labelled UART that goes through to a CP2104 UART-to-USB chip that makes UART0 available via USB (and connects to the same pins as those marked as TX and RX on the edge of the dev board which are also labelled as GPIO43 and 44 in the Espressif pinout diagram).
+
+This makes it easier to see what gets printed to which or what gets read from each.
+
+By default monitor output (like the boot sequence) gets written to both (the whole `CONFIG_ESP_CONSOLE_SECONDARY_NONE` and `ESP_CONSOLE_SECONDARY_USB_SERIAL_JTAG` thing above).
+
+I had to open `sdkconfig` and change the TXD and RXD values to 43 and 44 respectively (to match the GPIO values mentioned just above).
+
+Then I could watch what output went by connecting to both USB ports on the dev board and running `screen` against both.
+
 TODO
 ----
 
