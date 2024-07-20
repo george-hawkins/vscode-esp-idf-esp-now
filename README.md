@@ -10,17 +10,19 @@ $ mv ~/.vscode ~/.config/Code ~/.cache/vscode-* old-vscode-dots
 
 ---
 
-You can install the ESP-IDF manually (as described [here](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/get-started/index.html#manual-installation)) but they recommend installing it via your IDE.
+You can install the ESP-IDF manually (as described [here](https://docs.espressif.com/projects/esp-idf/en/stable/esp32/get-started/index.html#manual-installation)) but they recommend installing it via your IDE.
 
 I thought this might result in some isolated IDE specific setup but the VS Code ESP-IDF extension just does the same steps that you would have had to do manually.
 
 Everything still ends up in `~/esp` and `~/.espressif` as it would have with the manual approach. The only difference is that nothing gets added to your `~/.bashrc` and you have to use the _ESP-IDF Terminal_ icon (in the bottom bar) in VS Code to start a shell that's set up with the right environment to use tools like `idf.py` etc.
 
+See the _Upgrade_ section below for how to upgrade to a newer ESP-IDF version (VS Code and the extension keep themselves automatically up-to-date) - this section also covers how simple it would have been to do things manually rather than leaving it to VS Code.
+
 ---
 
 So guided by Espressif's [VS Code ESP-IDF extension installation guide](https://github.com/espressif/vscode-esp-idf-extension/blob/master/docs/tutorial/install.md), I did the following...
 
-Installed the [prerequisites](https://docs.espressif.com/projects/esp-idf/en/latest/esp32/get-started/linux-macos-setup.html#step-1-install-prerequisites):
+Installed the [prerequisites](https://docs.espressif.com/projects/esp-idf/en/stable/esp32/get-started/linux-macos-setup.html#step-1-install-prerequisites):
 
 ```
 $ sudo apt install git wget flex bison gperf python3 python3-pip python3-venv cmake ninja-build ccache libffi-dev libssl-dev dfu-util libusb-1.0-0
@@ -51,19 +53,12 @@ I select _Express_ in the _ESP-IDF Setup_ tab and:
 * Left download server as _GitHub_.
 * Selected the latest ESP-IDF version (v5.2.1 at the time of writing).
 * Left the tools and container directory as they were.
-* Actively selected `/usr/bin/python` as the Python version (as it autodetected an alternative version I'd installed using `pyenv`).
+
+Note: I use `pyenv` and it automatically detected `~/.pyenv/shims/python3` as the Python executable. This is fine if you're happy with whatever Python version is being pointed to - it'll be resolved to a concrete path later (i.e. the virtual env will bake in the thing that the shim redirects to).
 
 It then took some minutes to download and install everything (installing the virtual environment was the step where it stayed silent longest while doing things).
 
 That's it - done.
-
-**Update:** it looks like selecting `/usr/bin/python` might have been the wrong thing to do, I think instead I should have made sure the `pyenv` shim was pointing to a suitable recent version of Python and let the setup process use the shim (which was the behavior it defaulted to).
-
-You can't really change things later (as `/usr/bin/python` become baked into the resulting `~/.espressif/python_env`).
-
-This may all be the reason why I have to explicitly activate the ESP-IDF environment (see later) even when working via the _ESP-IDF Terminal_ in VS Code (which should normally set up the environment correctly).
-
-Note: it's this [post](https://www.esp32.com/viewtopic.php?t=38394#p127763) from an ESP employee that makes me think this.
 
 ---
 
@@ -142,15 +137,15 @@ Cannot import module "click". This usually means that "idf.py" was not spawned w
 Please use idf.py only in an ESP-IDF shell environment. If problem persists, please try to install ESP-IDF tools again as described in the Get Started guide.
 ```
 
-This is the problem I referred to above when setting the Python path as part of the ESP-IDF extension initial setup.
-
 The problem is solved easily enough:
 
 ```
-$ source ~/.espressif/python_env/idf5.2_py3.10_env/bin/activate
+$ source $IDF_PYTHON_ENV_PATH/activate
 ```
 
-Now `(idf5.2_py3.10_env)` appeared before the prompt to indicate that the venv was properly activated. Now ...
+Now `(idf5.2_py3.10_env)` appeared before the prompt to indicate that the venv was properly activated. I'd kind of expect that pressing _ESP-IDF terminal_ would open a terminal where the venv was already activated. But this is how it behaves on my Linux system.
+
+Now ...
 
 ```
 $ idf.py menuconfig
@@ -177,6 +172,24 @@ I tried _JTAG_ first and let it start OpenOCD but this failed. So, I clicked the
 Finally, I pressed the _ESP-IDF Monitor_ icon and could watch the output of my program.
 
 That was it
+
+### Jumping to #include files
+
+Somewhat oddly, you can't jump to include files like `freertos/FreeRTOS.h` and lines like the following appear highlighted with a squiggly red line beneath them:
+
+```
+#include "freertos/FreeRTOS.h"
+```
+
+This is odd as the build process can clearly find these files.
+
+The solution is simple. Once, you've done at least one build such that the `${workspaceFolder}/build/compile_commands.json` file is created (see above), open the command palette (ctrl-shift-P) and enter "ESP-IDF: Add vscode Configuration Folder".
+
+In your project directory, there's a `.vscode` directory and this command adds `c_cpp_properties.json` there and this tells VS Code (or more precisely, the C/C++ extension) where to find things.
+
+Note: this simple step is described in a [very unclear page](https://github.com/espressif/vscode-esp-idf-extension/blob/master/docs/C_CPP_CONFIGURATION.md) in the ESP-IDF extension documentation - all the detail hides the fact that there's just one thing to do (run the "Add vscode Configuration Folder" command).
+
+This step also adds a `tasks.json` file that allows you to access things like flashing via tasks, e.g. select the menu item _Go_ / _Go to File_ and enter "tasks " and then you'll see e.g. "Flash - flash this device". This just replicates the buttons in the bottom bar but may be useful if you prefer to access things via tasks.
 
 OpenOCD
 -------
@@ -248,6 +261,54 @@ Info : Listening on port 3333 for gdb connections
 I killed it and switched the flash method from _UART_ to _JTAG_ and flashing worked.
 
 This meant, I could now set breakpoints in `blink_example_main.c`, select _Run and Debug_ and just click the _Start Debugging_ icon shown to the left of the dropdown showing "Launch". Everything worked as expected - super!
+
+Upgrade - automatic and manual
+------------------------------
+
+First time through, it's convenient to let the VS Code extension take care of installing the ESP-IDF and associated tool.
+
+But it's not really doing that much and when you later e.g. want to upgrade to a newer version of the ESP-IDF, you may find it better to be in full control of the process.
+
+If VS Code announces that a new version of the ESP-IDF extension is available, you may decide this is also a good time to upgrade your ESP-IDF version and its associated tools. To do this:
+
+* VS Code automatically updates itself and its extensions (so, when it tells you about an update, it's really just asking if you want to update right now or sometime very soon at VS Codes discretion). So, just restart VS Code and check the extensions (cube, with top-left quadrant floating away, if left-hand gutter) and it'll probably already be up-to-date.
+* Close all your tabs (in particular ones that are associated with ESP-IDF features) and exist VS Code.
+* Remove or rename the current ESP-IDF directory and the associated tools folder:
+
+```
+$ cd
+$ mv esp esp.bak
+$ mv .espressif .espressif.bak
+```
+
+* Click the _ESP-IDF: Explorer_ icon in the left-hand gutter and, in the _Commands_ section, single click _Configure ESP-IDF Extension_ (it may seem to do nothing initially but it's downloading details from the internet and the configuration tab will pop up after a few seconds).
+* Then select the latest stable version from the _Select ESP-IDF version_ dropdown.
+* It'll take a substantial amount of time to install the ESP-IDF version, the associated tools and the Python virtual environment.
+* Once done, I restart VS Code, though this doesn't seem to be strictly required.
+* Once restarted, exit any terminal sessions in the _Terminal_ tab - slightly unbelieveably, VS Code seems to restore the environment of any session that was open before this whole process started and so its environment variables will point to the old version of things.
+
+**Important:**
+
+After updating to a new version of the ESP-IDF, the CMake files in your projects will still be pointing to the old version and if you try to build, you'll get an error like this:
+
+```
+[0/1] Re-running CMake...
+CMake Error at build/CMakeFiles/3.22.1/CMakeSystem.cmake:6 (include):
+  include could not find requested file:
+
+    /home/joebloggs/esp/v5.2.1/esp-idf/tools/cmake/toolchain-esp32c3.cmake
+```
+
+To update the CMake files, just switch to another target (i.e. click the MCU icon in the bottom bar) and then switch back to your original target. On each switch the CMake files are updated. There's probably a way to do this with `idf.py` in one step.
+
+### Manual
+
+So the above process is just doing three steps. You could chose to install things manually from the start, i.e.:
+
+* Install ESP-IDF in `~/esp` as covered in [step 2](https://docs.espressif.com/projects/esp-idf/en/stable/esp32/get-started/linux-macos-setup.html#step-2-get-esp-idf) of the manual installation process.
+* Use the installer scripts to install the associated tools and Python virtual envionment into `~/.espressif` as covered in [step 3](https://docs.espressif.com/projects/esp-idf/en/stable/esp32/get-started/linux-macos-setup.html#step-3-set-up-the-tools). Note the option to install `all` rather than e.g. `esp32` (which just installs the toolss for a specific ESP32 chip type) - installing for all chip types is what the VS Code extensions does.
+
+Then later when you want you can upgrade to a newer stable release as described [here](https://docs.espressif.com/projects/esp-idf/en/stable/esp32/versions.html#updating-esp-idf).
 
 ESP-NOW component examples
 --------------------------
