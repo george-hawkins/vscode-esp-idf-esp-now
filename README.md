@@ -92,16 +92,7 @@ When I set the target, the _Output_ tab (tabs in lower half of window) logged th
 [6/1/2024, 1:29:12 PM] "${workspaceFolder}/build/compile_commands.json" could not be parsed. 'includePath' from c_cpp_properties.json in folder 'blink' will be used instead.
 ```
 
-I looked at both files:
-
-```
-$ cd .../blink
-$ vim -O .vscode/c_cpp_properties.json build/compile_commands.json
-```
-
-Both looked fine and from a JSON point of view both were parseable (confirmed with `jq`).
-
-**Update:** I think this issue is that you have to do at least one build (see below) before this file is properly updated to reflect the current state of things. This seems to be confirmed in the ESP-IDF extension's documentation for the [`c_cpp_properties.json` file](https://github.com/espressif/vscode-esp-idf-extension/blob/master/docs/C_CPP_CONFIGURATION.md):
+The issue is that you have to do at least one build (see below) before this file is properly updated to reflect the current state of things. This is covered in the ESP-IDF extension's documentation for the [`c_cpp_properties.json` file](https://github.com/espressif/vscode-esp-idf-extension/blob/master/docs/C_CPP_CONFIGURATION.md):
 
 > For the default configuration, you must build your project beforehand in order to generate `${workspaceFolder}/build/compile_commands.json` (where `${workspaceFolder}` is your project directory).
 
@@ -168,6 +159,8 @@ Plug in your device, it's port isn't automatically selected but if you click the
 Once the port is selected, click the _Flash_ icon - I thought it was doing nothing until I notiched the dropdown that had opened at the top of the screen and had to select the flashing method.
 
 I tried _JTAG_ first and let it start OpenOCD but this failed. So, I clicked the _Flash Method_ icon (star in bottom bar) and changed it to _UART_, this time flashing worked.
+
+**Update:** see below for how to get OpenOCD working - it's worth it.
 
 Finally, I pressed the _ESP-IDF Monitor_ icon and could watch the output of my program.
 
@@ -310,8 +303,12 @@ So the above process is just doing three steps. You could chose to install thing
 
 Then later when you want you can upgrade to a newer stable release as described [here](https://docs.espressif.com/projects/esp-idf/en/stable/esp32/versions.html#updating-esp-idf).
 
-ESP-NOW component examples
---------------------------
+Examples
+--------
+
+We got the Blink example working above, now let's try some more things...
+
+### ESP-NOW component
 
 Go to the _ESP-IDF Welcome_ tab, click the _Show examples_ button - at the top of the examples page it says "For external components examples, check _IDF Component Registry_", click the _IDF Component Registry_ and enter "esp-now" in the search field there. _espressif/esp-now_ should be the first result, click that and then go to its _Examples_ tab.
 
@@ -444,11 +441,59 @@ I switch to a [ESP32-S3-DevKitC](https://docs.espressif.com/projects/esp-idf/en/
 
 This makes it easier to see what gets printed to which or what gets read from each.
 
-By default monitor output (like the boot sequence) gets written to both (the whole `CONFIG_ESP_CONSOLE_SECONDARY_NONE` and `ESP_CONSOLE_SECONDARY_USB_SERIAL_JTAG` thing above).
+I'm going to call one USB the _UART USB_ and the other the _JTAG USB_.
+
+This application has the same issues that confused me above (the whole `CONFIG_ESP_CONSOLE_SECONDARY_NONE` and `ESP_CONSOLE_SECONDARY_USB_SERIAL_JTAG` thing above) but at this stage the behavior seems fairly reasonable. The device startup logging goes to UART0, the user logging goes to the JTAG USB and you can only do normal UART input and output via the UART USB.
 
 I had to open `sdkconfig` and change the TXD and RXD values to 43 and 44 respectively (to match the GPIO values mentioned just above).
 
 Then I could watch what output went by connecting to both USB ports on the dev board and running `screen` against both.
+
+`screen` doesn't support the line-return mode used by the ESP32 console so, `minicom` works better:
+
+```
+$ sudo apt install minicom
+$ minicom --color=on -b 115200 -D /dev/ttyACM0
+```
+
+When you exit `minicom` (with `ctrl-A` `X`), it leaves the terminal whatever color it was while using `minicom` - just enter `clear` to get things looking normal.
+
+Another big plus for `minicom` is that, unlike `screen`, it doesn't exit when you reset the dev board and the JTAG USB device temporarily goes away. Instead it reconnects immediately when the device becomes available.
+
+`minicom` assumes hardware flow control - this is fine for the JTAG USB but doesn't work for the UART USD _by default_ (see the example's README, you can set `ECHO_TEST_RTS` and `ECHO_TEST_CTS` if you want). Oddly, you can't turn hardware flow control on and off on via command line arguments. Instead, with `minicom` running, you have to:
+
+* Press `ctrl-A` `O` to `cOnfigure` `minicom`.
+* Select the `Serial port setup` menu item.
+* Press `F` to toggle the `Hardware Flow Control`.
+* Press return to exit out to the parent menu and this time select `Save setup as dfl`.
+
+Now, the change is saved:
+
+```
+$ cat ~/.minirc.dfl 
+# Machine-generated file - use setup menu in minicom to change parameters.
+pu rtscts           No
+```
+
+If you wanted you could save this setting to its own file, e.g. `minirc.no-rtscts` (the filename must start with `minirc.`) so, its not a global setting, and then specify it (just the suffix bit) when starting minicom:
+
+```
+$ minicom --color=on -b 115200 -D /dev/ttyACM0 no-rtscts
+```
+
+It'll also search for files named `.minirc.xyz` in your home directory, so you could store `.minirc.no-rtscts` there and the contained options would be readily available irrespective of your current location in the filesystem.
+
+### Determine if SoC support JTAG USB
+
+If you want code that runs on SoCs that do and don't support `usb_serial_jtag_read_bytes`, you have to use:
+
+```
+#if CONFIG_SOC_USB_SERIAL_JTAG_SUPPORTED
+    ...
+#else
+    ...
+#endif
+```
 
 TODO
 ----
