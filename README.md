@@ -445,7 +445,9 @@ I'm going to call one USB the _UART USB_ and the other the _JTAG USB_.
 
 This application has the same issues that confused me above (the whole `CONFIG_ESP_CONSOLE_SECONDARY_NONE` and `ESP_CONSOLE_SECONDARY_USB_SERIAL_JTAG` thing above) but at this stage the behavior seems fairly reasonable. The device startup logging goes to UART0, the user logging goes to the JTAG USB and you can only do normal UART input and output via the UART USB.
 
-I had to open `sdkconfig` and change the TXD and RXD values to 43 and 44 respectively (to match the GPIO values mentioned just above).
+I had to open `sdkconfig` and change the TXD and RXD values to 43 and 44 respectively (to match the GPIO values mentioned just above) and it also seemed to be necessary to change the UART to 0.
+
+**IMPORTANT:** a little surprisingly, these values seem to reset if you switch between chip targets, e.g. from S3 to C3.
 
 Then I could watch what output went by connecting to both USB ports on the dev board and running `screen` against both.
 
@@ -494,6 +496,12 @@ If you want code that runs on SoCs that do and don't support `usb_serial_jtag_re
     ...
 #endif
 ```
+
+### PSRAM and UART interupts
+
+In some code, you see the caller of `uart_driver_install` explicitly setting `ESP_INTR_FLAG_IRAM` depending on whether `CONFIG_UART_ISR_IN_IRAM` is set but this is pointless.
+
+The `uart_driver_install` function itself always sets the `ESP_INTR_FLAG_IRAM` appropriately and ignores the passed in state of the flag.
 
 TODO
 ----
