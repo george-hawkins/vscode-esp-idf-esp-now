@@ -131,7 +131,7 @@ Please use idf.py only in an ESP-IDF shell environment. If problem persists, ple
 The problem is solved easily enough:
 
 ```
-$ source $IDF_PYTHON_ENV_PATH/activate
+$ source $IDF_PYTHON_ENV_PATH/bin/activate
 ```
 
 Now `(idf5.2_py3.10_env)` appeared before the prompt to indicate that the venv was properly activated. I'd kind of expect that pressing _ESP-IDF terminal_ would open a terminal where the venv was already activated. But this is how it behaves on my Linux system.
@@ -502,6 +502,96 @@ If you want code that runs on SoCs that do and don't support `usb_serial_jtag_re
 In some code, you see the caller of `uart_driver_install` explicitly setting `ESP_INTR_FLAG_IRAM` depending on whether `CONFIG_UART_ISR_IN_IRAM` is set but this is pointless.
 
 The `uart_driver_install` function itself always sets the `ESP_INTR_FLAG_IRAM` appropriately and ignores the passed in state of the flag.
+
+### Coin cell example
+
+The [coin cell example](https://github.com/espressif/esp-now/tree/master/examples/coin_cell_demo) demos binding devices.
+
+#### Coin cell powered board
+
+The README shows a custom coin-cell powered ESP32C2 board but they also describe how to get it going with a normal dev board (and in fact the steps involved are simpler as the coin cell board requires a separate programmer).
+
+So, just ignore the _coin cell button_ specific instructions in the [_How to Use the Example_](https://github.com/espressif/esp-now/tree/master/examples/coin_cell_demo#how-to-use-the-example) section and remember that the `menuconfig` item `EXAMPLE_USE_COIN_CELL_BUTTON` to `N` as covered below.
+
+Note: the button shown in the example's README is described in details in a [paywalled article](https://www.elektormagazine.com/magazine/elektor-328/62434) from Elektor (I have the [print version](https://www.elektor.com/products/elektor-special-espressif-guest-edition-2023-en) and it goes into a lot of technical detail about low-power ESP design). The button doesn't appear to be for sale but a design, _apparently_ from Espressif, is available [here](https://oshwhub.com/esp-college/32bfc63ed181441a9a44da6cd2419809) on OSHWHub (Chinese only - there's a corresponding English language site called [OSHWLab](https://oshwlab.com/) but designs are not shared across the two). Note that one of the comments at the bottom of the OSHWHub page claims that the design is incomplete and the schematic shown for version 1.0 doesn't match the one shown in the example's README (and the dates etc. don't match up), the version 1.1 schematic on the OSHWHub is only viewable if you have a login for the Chinese language version of EasyEDA (creating such an account requires WeChat or registering using your phone number).
+
+#### Running the example on a standard dev board
+
+As above, go to the _ESP-IDF: Explorer_ in VS Code, select _Show Examples_ (and select _Use current_ from the center-top dropdown), then click the _ESP Component Registry_ link, search for "esp-now", click the _espressif/esp-now_ link, click the _Examples_ tab, then the _coin_cell_demo/switch_ link.
+
+The current version of the ESP-IDF plugin seems to get confused by this situation where there are two parts to the example (_switch_ and _bulb_) in the _coin_cell_demo_ directory. At the end of creating the project it says "The path .../coin_cell_demo/switch does not exist on this computer." But actually all is fine, it's created the project and all you have to do is go to _File_ / _Open Folder..._ and open the `switch` folder.
+
+The center-top dropdown suggests you should select a kit (gcc or clangd based) for the project but just press escape (as selecting the target will select a board specific kit).
+
+Then set the device target to esp32c3 (or whatever's appropriate for your board), right click on the `sdkconfig` file and select _SDK Configuration Editor_ and search for "EXAMPLE_USE_COIN_CELL_BUTTON" and untick "Use coin cell button".
+
+Click the build button, the project pulls in the [_espressif/button_ component](https://components.espressif.com/components/espressif/button/) (that provides functions for detecting double clicks and the such like) and this component results in some deprecation warnings (about `ADC_ATTEN_DB_11`) but it seems fine to ignore these.
+
+Before taking a look at the code remember to open the command palette (ctrl-shift-P) and enter "ESP-IDF: Add vscode Configuration Folder" (as covered above). Then go to `main/app_main.c` and you'll see the file is basically split in two and which half gets compiled depends on whether `CONFIG_EXAMPLE_USE_COIN_CELL_BUTTON` is defined or not.
+
+---
+
+Now open the _bulb_ half of the example and go through the same steps, including running the "ESP-IDF: Add vscode Configuration Folder" task but don't flash the code to your _second_ board yet.
+
+The code assumes you've got a dev board with a neopixel - if your board had a normal LED you'll have to modify a few things first.
+
+Assuming you've got a simple ESP32C3 dev board with a normal onboard LED connected to pin 8 then:
+
+**1.** Repmoved the block that defines `g_strip_handle`:
+
+```
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
+// ESP32C2-DevKit Board uses RGB LED
+#if !CONFIG_IDF_TARGET_ESP32C2
+static led_strip_handle_t g_strip_handle = NULL;
+#endif
+#else
+static led_strip_t *g_strip_handle = NULL;
+#endif
+```
+
+**2.** Replace the contents of function `app_led_init` with:
+
+```
+gpio_reset_pin(LED_STRIP_GPIO);
+gpio_set_direction(LED_STRIP_GPIO, GPIO_MODE_OUTPUT);
+```
+
+**3.** Replace the contents of function `app_led_set_color` with:
+
+```
+uint32_t level = red == 0 && green == 0 && blue == 0 ? 0 : 1;
+
+gpio_set_level(LED_STRIP_GPIO, level);
+```
+
+That's it. The code assumes it can indicate different states with different colors:
+
+* Normal bult operation (off or white).
+* Binding (green).
+* Unbinding (red).
+
+With a normal LED, there's just two states on or off - so bulb on, binding and unbinding all just turn the LED on, you can't distinguish between the states. One could try using different LED brightnesses to indicate bind and unbind but I haven't tried that.
+
+Now, build and flash the code to the board.
+
+---
+
+**Note:** working with two ESP32 boards and OpenOCD doesn't seem to work very well - even if you change the selected port (port icon in bottom bar), OpenOCD seems to remain tied to the first device it programmed. Only having one device plugged in at a time while programming (and frequent use of `pkill -9 openocd`) seemed to be the only soliution.
+
+
+```
+$ source ~/esp/v5.2.2/esp-idf/export.sh
+$ idf.py monitor --port /dev/esp-usb-serial1
+```
+
+Note that `monitor` tries to be a bit intelligent and needs to be in the root directory of the the project that's been uploaded to the board so that it can find its `CMakeLists.txt`. If you start `monitor` in the directory of a different project, it'll notice this as the device boots and print:
+
+```
+Warning: checksum mismatch between flashed and built applications. Checksum of built application is 9099c68bc9f4ac6dd986d5efdc315874974dacb418a6b19fdcdce8d8c099c8ee
+```
+
+The boards seemed to behave differently at different times to programming - sometimes they reset after flashing and immediately started running the flashed program, other times the RESET button had to be pressed. I thought initially this was some difference between the different Super Mini boards I have but it's something other than that.
 
 TODO
 ----
