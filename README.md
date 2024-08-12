@@ -884,6 +884,46 @@ This causes various things, like `CONFIG_ESPNOW_CONTROL_RETRANSMISSION_TIMES`, t
 
 The remaining differences are a result of the original code also setting `CONFIG_ESPNOW_LIGHT_SLEEP=y` which is only relevant if using the coin-cell button rather than a normal dev board (as it needs to sleep for a certain amount of time before sending in order to fully charge the capicitor that it needs to have enough power to handle the transmit step).
 
+So, for `switch` and `bulb`, I did:
+
+```
+$ echo CONFIG_ESPNOW_CONTROL_AUTO_CHANNEL_SENDING=y > sdkconfig.defaults
+$ idf.py set-target esp32c3
+```
+
+The `set-target` is required to force it to rebuild the full `sdkconfig` file.
+
+And then:
+
+```
+$ idf.py build
+$ cd build
+$ esptool.py --port /dev/esp-usb-serial0 --chip esp32c3 -b 460800 --before default_reset --after hard_reset write_flash "@flash_args"
+```
+
+As before make sure to update `port` values so, you really do update the particular board you really want to update.
+
+This didn't seem to greatly improve how often packets got lost but at least the switch side seemed to be aware of the transmit failures and output:
+
+```
+W (184040) espnow_ctrl: [espnow_ctrl_initiator_handle, 429] <ESP_FAIL> espnow_broadcast, ret: -1
+```
+
+If I pressed the double-clicked to bind repeatedly the bulb would sometimes output:
+
+```
+I (70672) espnow_ctrl: bind, esp_log_timestamp: 70672, timestamp: 1800542, rssi: -55, rssi: -55
+```
+
+And sometimes output two lines:
+
+```
+I (106842) espnow_ctrl: bind, esp_log_timestamp: 106842, timestamp: 1800542, rssi: -43, rssi: -55
+I (106842) app_bulb: bind, uuid: 64:e8:33:88:a6:20, initiator_type: 513
+```
+
+This would make sense if e.g. `espnow_ctrl` was only forwarding the event to the application layer if the device wasn't already bound but this didn't seem to be it, double clicking the switch while already bound seemingly randomly resulted in the one or two line output from the bulb.
+
 ##### Notes on opening newly created project in VS Code
 
 Open in VS Code and remember to run the "ESP-IDF: Add vscode Configuration Folder" task.
