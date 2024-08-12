@@ -24,7 +24,6 @@
 #if ESP_IDF_VERSION < ESP_IDF_VERSION_VAL(5, 0, 0)
 #include "driver/rmt.h"
 #endif
-#include "led_strip.h"
 
 #include "driver/gpio.h"
 
@@ -59,46 +58,7 @@
 
 static const char *TAG = "app_bulb";
 
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
-// ESP32C2-DevKit Board uses RGB LED
-#if !CONFIG_IDF_TARGET_ESP32C2
-static led_strip_handle_t g_strip_handle = NULL;
-#endif
-#else
-static led_strip_t *g_strip_handle = NULL;
-#endif
-
 static uint32_t s_bulb_status = 0;
-
-static char *bind_error_to_string(espnow_ctrl_bind_error_t bind_error)
-{
-    switch (bind_error) {
-    case ESPNOW_BIND_ERROR_NONE: {
-        return "No error";
-        break;
-    }
-
-    case ESPNOW_BIND_ERROR_TIMEOUT: {
-        return "bind timeout";
-        break;
-    }
-
-    case ESPNOW_BIND_ERROR_RSSI: {
-        return "bind packet RSSI below expected threshold";
-        break;
-    }
-
-    case ESPNOW_BIND_ERROR_LIST_FULL: {
-        return "bindlist is full";
-        break;
-    }
-
-    default: {
-        return "unknown error";
-        break;
-    }
-    }
-}
 
 static void app_set_bulb_status(void)
 {
@@ -125,53 +85,15 @@ static void app_wifi_init()
 
 static void app_led_init(void)
 {
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
-#if CONFIG_IDF_TARGET_ESP32C2
-    gpio_reset_pin(LED_RED_GPIO);
-    gpio_reset_pin(LED_GREEN_GPIO);
-    gpio_reset_pin(LED_BLUE_GPIO);
-
-    /* Set the GPIO as a push/pull output */
-    gpio_set_direction(LED_RED_GPIO, GPIO_MODE_OUTPUT);
-    gpio_set_direction(LED_GREEN_GPIO, GPIO_MODE_OUTPUT);
-    gpio_set_direction(LED_BLUE_GPIO, GPIO_MODE_OUTPUT);
-
-    gpio_set_level(LED_RED_GPIO, 1);
-    gpio_set_level(LED_GREEN_GPIO, 1);
-    gpio_set_level(LED_BLUE_GPIO, 1);
-#else
-    /* LED strip initialization with the GPIO and pixels number*/
-    led_strip_config_t strip_config = {
-        .strip_gpio_num = LED_STRIP_GPIO,
-        .max_leds = 1, // at least one LED on board
-    };
-    led_strip_rmt_config_t rmt_config = {
-        .resolution_hz = 10 * 1000 * 1000, // 10MHz
-    };
-    ESP_ERROR_CHECK(led_strip_new_rmt_device(&strip_config, &rmt_config, &g_strip_handle));
-    /* Set all LED off to clear all pixels */
-    led_strip_clear(g_strip_handle);
-#endif
-#else
-    g_strip_handle = led_strip_init(RMT_CHANNEL_0, LED_STRIP_GPIO, 1);
-#endif
+    gpio_reset_pin(LED_STRIP_GPIO);
+    gpio_set_direction(LED_STRIP_GPIO, GPIO_MODE_OUTPUT);
 }
 
 void app_led_set_color(uint8_t red, uint8_t green, uint8_t blue)
 {
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
-#if CONFIG_IDF_TARGET_ESP32C2
-    gpio_set_level(LED_RED_GPIO, red > 0 ? 0 : 1);
-    gpio_set_level(LED_GREEN_GPIO, green > 0 ? 0 : 1);
-    gpio_set_level(LED_BLUE_GPIO, blue > 0 ? 0 : 1);
-#else
-    led_strip_set_pixel(g_strip_handle, 0, red, green, blue);
-    led_strip_refresh(g_strip_handle);
-#endif
-#else
-    g_strip_handle->set_pixel(g_strip_handle, 0, red, green, blue);
-    g_strip_handle->refresh(g_strip_handle, 100);
-#endif
+    uint32_t level = red == 0 && green == 0 && blue == 0 ? 0 : 1;
+
+    gpio_set_level(LED_STRIP_GPIO, level);
 }
 
 static void app_driver_init(void)
@@ -215,12 +137,6 @@ static void app_espnow_event_handler(void *handler_args, esp_event_base_t base, 
         ESP_LOGI(TAG, "bind, uuid: " MACSTR ", initiator_type: %d", MAC2STR(info->mac), info->initiator_attribute);
 
         app_led_set_color(0, 255, 0);
-        break;
-    }
-
-    case ESP_EVENT_ESPNOW_CTRL_BIND_ERROR: {
-        espnow_ctrl_bind_error_t *bind_error = (espnow_ctrl_bind_error_t *)event_data;
-        ESP_LOGW(TAG, "bind error: %s", bind_error_to_string(*bind_error));
         break;
     }
 
