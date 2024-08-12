@@ -515,6 +515,8 @@ So, just ignore the _coin cell button_ specific instructions in the [_How to Use
 
 Note: the button shown in the example's README is described in details in a [paywalled article](https://www.elektormagazine.com/magazine/elektor-328/62434) from Elektor (I have the [print version](https://www.elektor.com/products/elektor-special-espressif-guest-edition-2023-en) and it goes into a lot of technical detail about low-power ESP design). The button doesn't appear to be for sale but a design, _apparently_ from Espressif, is available [here](https://oshwhub.com/esp-college/32bfc63ed181441a9a44da6cd2419809) on OSHWHub (Chinese only - there's a corresponding English language site called [OSHWLab](https://oshwlab.com/) but designs are not shared across the two). Note that one of the comments at the bottom of the OSHWHub page claims that the design is incomplete and the schematic shown for version 1.0 doesn't match the one shown in the example's README (and the dates etc. don't match up), the version 1.1 schematic on the OSHWHub is only viewable if you have a login for the Chinese language version of EasyEDA (creating such an account requires WeChat or registering using your phone number).
 
+**Update:** there are far more details of the coin-cell board in the `switch/docs` subdirectory, see [`button_in_matter_bridging.md`](https://github.com/espressif/esp-now/blob/master/examples/coin_cell_demo/switch/docs/button_in_matter_bridging.md) along with the schematic and PCB (unfortunately, only in PDF form) and the BOM [here](https://github.com/espressif/esp-now/tree/master/examples/coin_cell_demo/switch/docs).
+
 #### Running the example on a standard dev board
 
 As above, go to the _ESP-IDF: Explorer_ in VS Code, select _Show Examples_ (and select _Use current_ from the center-top dropdown), then click the _ESP Component Registry_ link, search for "esp-now", click the _espressif/esp-now_ link, click the _Examples_ tab, then the _coin_cell_demo/switch_ link.
@@ -592,6 +594,320 @@ Warning: checksum mismatch between flashed and built applications. Checksum of b
 ```
 
 The boards seemed to behave differently at different times to programming - sometimes they reset after flashing and immediately started running the flashed program, other times the RESET button had to be pressed. I thought initially this was some difference between the different Super Mini boards I have but it's something other than that.
+
+---
+
+After plugging in with BOOT button held down:
+
+```
+Aug 12 13:31:28 ghawkins-OMEN-25L-Desktop-GT12-0xxx kernel: [ 1491.421458] usb 1-7.1: new full-speed USB device number 7 using xhci_hcd
+Aug 12 13:31:29 ghawkins-OMEN-25L-Desktop-GT12-0xxx kernel: [ 1491.523123] usb 1-7.1: New USB device found, idVendor=303a, idProduct=1001, bcdDevice= 1.01
+Aug 12 13:31:29 ghawkins-OMEN-25L-Desktop-GT12-0xxx kernel: [ 1491.523137] usb 1-7.1: New USB device strings: Mfr=1, Product=2, SerialNumber=3
+Aug 12 13:31:29 ghawkins-OMEN-25L-Desktop-GT12-0xxx kernel: [ 1491.523142] usb 1-7.1: Product: USB JTAG/serial debug unit
+Aug 12 13:31:29 ghawkins-OMEN-25L-Desktop-GT12-0xxx kernel: [ 1491.523146] usb 1-7.1: Manufacturer: Espressif
+Aug 12 13:31:29 ghawkins-OMEN-25L-Desktop-GT12-0xxx kernel: [ 1491.523149] usb 1-7.1: SerialNumber: 64:E8:33:88:A6:20
+Aug 12 13:31:29 ghawkins-OMEN-25L-Desktop-GT12-0xxx kernel: [ 1491.571412] cdc_acm 1-7.1:1.0: ttyACM0: USB ACM device
+Aug 12 13:31:29 ghawkins-OMEN-25L-Desktop-GT12-0xxx kernel: [ 1491.571436] usbcore: registered new interface driver cdc_acm
+Aug 12 13:31:29 ghawkins-OMEN-25L-Desktop-GT12-0xxx kernel: [ 1491.571437] cdc_acm: USB Abstract Control Model driver for USB modems and ISDN adapters
+Aug 12 13:31:29 ghawkins-OMEN-25L-Desktop-GT12-0xxx snapd[819]: hotplug.go:200: hotplug device add event ignored, enable experimental.hotplug
+```
+
+Flashing:
+
+```
+esptool.py --port /dev/esp-usb-serial0 --chip esp32c3 -b 460800 --before default_reset --after hard_reset write_flash --flash_mode dio --flash_freq 80m --flash_size 2MB 0x0 bootloader/bootloader.bin 0x10000 switch.bin 0x8000 partition_table/partition-table.bin
+esptool.py v4.7.0
+Serial port /dev/esp-usb-serial0
+Connecting...
+Chip is ESP32-C3 (QFN32) (revision v0.4)
+Features: WiFi, BLE, Embedded Flash 4MB (XMC)
+Crystal is 40MHz
+MAC: 64:e8:33:88:a6:20
+Uploading stub...
+Running stub...
+Stub running...
+Changing baud rate to 460800
+Changed.
+Configuring flash size...
+Flash will be erased from 0x00000000 to 0x00003fff...
+Flash will be erased from 0x00010000 to 0x000affff...
+Flash will be erased from 0x00008000 to 0x00008fff...
+Compressed 14624 bytes to 10474...
+Wrote 14624 bytes (10474 compressed) at 0x00000000 in 0.2 seconds (effective 523.3 kbit/s)...
+Hash of data verified.
+Compressed 652912 bytes to 398856...
+Wrote 652912 bytes (398856 compressed) at 0x00010000 in 4.8 seconds (effective 1094.8 kbit/s)...
+Hash of data verified.
+Compressed 3072 bytes to 103...
+Wrote 3072 bytes (103 compressed) at 0x00008000 in 0.0 seconds (effective 573.6 kbit/s)...
+Hash of data verified.
+
+Leaving...
+Hard resetting via RTS pin...
+```
+
+Despite saying "Hard resetting" above, the board did not reset itself (there was no further output to `/var/log/syslog`) and I had to press the board's RESET button. The following was then logged to `/var/log/syslog`:
+
+```
+Aug 12 13:32:47 ghawkins-OMEN-25L-Desktop-GT12-0xxx kernel: [ 1570.045147] usb 1-7.1: USB disconnect, device number 7
+Aug 12 13:32:48 ghawkins-OMEN-25L-Desktop-GT12-0xxx kernel: [ 1570.526646] usb 1-7.1: new full-speed USB device number 8 using xhci_hcd
+Aug 12 13:32:48 ghawkins-OMEN-25L-Desktop-GT12-0xxx kernel: [ 1570.610460] usb 1-7.1: device descriptor read/64, error -32
+Aug 12 13:32:48 ghawkins-OMEN-25L-Desktop-GT12-0xxx kernel: [ 1570.819072] usb 1-7.1: device descriptor read/all, error -32
+Aug 12 13:32:48 ghawkins-OMEN-25L-Desktop-GT12-0xxx kernel: [ 1570.898456] usb 1-7.1: new full-speed USB device number 9 using xhci_hcd
+Aug 12 13:32:48 ghawkins-OMEN-25L-Desktop-GT12-0xxx kernel: [ 1570.978547] usb 1-7.1: device descriptor read/64, error -32
+Aug 12 13:32:48 ghawkins-OMEN-25L-Desktop-GT12-0xxx kernel: [ 1571.166481] usb 1-7.1: device descriptor read/64, error -32
+Aug 12 13:32:48 ghawkins-OMEN-25L-Desktop-GT12-0xxx kernel: [ 1571.275243] usb 1-7-port1: attempt power cycle
+Aug 12 13:32:49 ghawkins-OMEN-25L-Desktop-GT12-0xxx kernel: [ 1571.882425] usb 1-7.1: new full-speed USB device number 10 using xhci_hcd
+Aug 12 13:32:49 ghawkins-OMEN-25L-Desktop-GT12-0xxx kernel: [ 1571.903093] usb 1-7.1: device descriptor read/8, error -32
+Aug 12 13:32:49 ghawkins-OMEN-25L-Desktop-GT12-0xxx kernel: [ 1572.031385] usb 1-7.1: device descriptor read/8, error -32
+Aug 12 13:32:49 ghawkins-OMEN-25L-Desktop-GT12-0xxx kernel: [ 1572.218380] usb 1-7.1: new full-speed USB device number 11 using xhci_hcd
+Aug 12 13:32:49 ghawkins-OMEN-25L-Desktop-GT12-0xxx kernel: [ 1572.240414] usb 1-7.1: New USB device found, idVendor=303a, idProduct=1001, bcdDevice= 1.01
+Aug 12 13:32:49 ghawkins-OMEN-25L-Desktop-GT12-0xxx kernel: [ 1572.240427] usb 1-7.1: New USB device strings: Mfr=1, Product=2, SerialNumber=3
+Aug 12 13:32:49 ghawkins-OMEN-25L-Desktop-GT12-0xxx kernel: [ 1572.240432] usb 1-7.1: Product: USB JTAG/serial debug unit
+Aug 12 13:32:49 ghawkins-OMEN-25L-Desktop-GT12-0xxx kernel: [ 1572.240436] usb 1-7.1: Manufacturer: Espressif
+Aug 12 13:32:49 ghawkins-OMEN-25L-Desktop-GT12-0xxx kernel: [ 1572.240440] usb 1-7.1: SerialNumber: 64:E8:33:88:A6:20
+Aug 12 13:32:49 ghawkins-OMEN-25L-Desktop-GT12-0xxx kernel: [ 1572.254999] usb 1-7.1: can't set config #1, error -32
+Aug 12 13:32:49 ghawkins-OMEN-25L-Desktop-GT12-0xxx fwupd[2917]: 11:32:49:0768 FuEngine             failed to probe device usb:01:00:07:01: USB error on device 303a:1001 : Entity not found [-5]
+```
+
+---
+
+#### Coin cell redo
+
+I couldn't get the switch part of the example to work with my ESP32C3 boards, after flashing and pressing RESET, I always got the issue shown above where the device was not recognised as a serial device and various errors were logged to `/var/log/syslog`.
+
+So, I decided to recreate the project from scratch, creating the `switch` and `bulb` parts of the example with the ESP-IDF command line tools and copying over the main `.c` code from the original project but nothing else (i.e. none of the supporting structure, e.g. `sdkconfig` etc.).
+
+Here are the steps I went thru...
+
+I set up the `esp-idf` command line environment, created a completely new project, set the target to `esp32c3`, looked up the latest `espressif/esp-now` and `espressif/button` in the [ESP Component Registry](https://components.espressif.com/) and added them as dependencies:
+
+```
+$ source ~/esp/v5.2.2/esp-idf/export.sh
+$ mkdir coin_cell_clean
+$ cd coin_cell_clean
+$ idf.py create-project switch
+$ cd switch
+$ idf.py set-target esp32c3
+$ idf.py add-dependency 'espressif/esp-now^2.5.1'
+$ idf.py add-dependency 'espressif/button^3.3.1'
+```
+
+I downloaded the original `switch` code and removed all reference to the coin-cell board, i.e. the code will only work with a standard dev board:
+
+```
+$ cd main
+$ curl -o switch.c https://raw.githubusercontent.com/espressif/esp-now/master/examples/coin_cell_demo/switch/main/app_main.c
+$ vim switch.c
+$ cd ..
+```
+
+You can see the changes I made to the original `app_main.c` [here](https://github.com/george-hawkins/vscode-esp-idf-esp-now/commit/2179409b22176f227cf5d6a8395eb3c82c114b1d). I also removed two other minor `#ifdef` usages to make things as simple as possible.
+
+Note: when downloading `app_main.c` with curl, I renamed it to `switch.c`. This is simply because the `idf.py create-project` step above had create a `switch.c` file containing a skeleton for the `app_main` function and I just decided to stick with its choice of file names.
+
+Then I did a `reconfigure` to download the dependencies (the `add-dependency` step above just adds entries to `main/idf_component.yml` but doesn't actually download the code for the components):
+
+```
+$ idf.py reconfigure
+```
+
+Then I held down the boards BOOT button, pressed RESET and then released the BOOT button to make sure it was ready to be flashed.
+
+Then I built and flashed the code:
+
+```
+$ idf.py build
+$ cd build
+$ esptool.py --port /dev/esp-usb-serial0 --chip esp32c3 -b 460800 --before default_reset --after hard_reset write_flash "@flash_args"
+```
+
+Make sure to change the `port` value (`/dev/esp-usb-serial0` above) to whatever's appropriate for your setup.
+
+After flashing, I pressed the board's RESET button and this time it showed up as desired as a serial device.
+
+---
+
+I then did a similar set of steps for the `bulb` part of the example even though it had uploaded fine using the original setup. I just wanted to have the two parts really in sync with each other in terms of what components etc. they were using:
+
+```
+$ cd .../coin_cell_clean
+$ idf.py create-project bulb
+$ cd bulb
+$ idf.py set-target esp32c3
+$ idf.py add-dependency 'espressif/esp-now^2.5.1'
+```
+
+My dev board has a normal LED connected to pin 8, if your board has neopixel then you also need to add the `espressif/led_strip` dependency:
+
+```
+$ idf.py add-dependency 'espressif/led_strip^2.5.4'
+```
+
+Then download the original `app_main.c`:
+
+```
+$ cd main
+$ curl -o bulb.c https://raw.githubusercontent.com/espressif/esp-now/master/examples/coin_cell_demo/bulb/main/app_main.c
+$ vim bulb.c
+$ cd ..
+```
+
+At the time of writing, the `espressif/esp-now` version was `2.5.1` but the `bulb` code on `master` (that was retrieved using `curl`) had been updated to use the at-the-time unreleased `ESP_EVENT_ESPNOW_CTRL_BIND_ERROR` to diagnose binding failures. So, I had to remove the `bind_error_to_string` function and the `ESP_EVENT_ESPNOW_CTRL_BIND_ERROR` `case` lower down in the `app_espnow_event_handler` function.
+
+Other than this change, it isn't necessary to change anything else _if_ your board has a neopixel. If your board has a normal LED, the changes covered above need to be made, you can see a `diff` of the change I made [here](https://github.com/george-hawkins/vscode-esp-idf-esp-now/commit/6112f28fe8545c88823e5664cb87634453d1a931).
+
+Then the final build and flashing steps:
+
+```
+$ idf.py reconfigure
+$ idf.py build
+$ cd build
+$ esptool.py --port /dev/esp-usb-serial0 --chip esp32c3 -b 460800 --before default_reset --after hard_reset write_flash "@flash_args"
+```
+
+Make sure you're keeping track of which device is connected to which port and that you're not simply e.g. overwriting the `switch` code on one board with the `bulb` code (I did this more than once).
+
+Once both boards are ready run `monitor` for both (at this stage, I'd decided to do everything on the command line and use ESP-IDF tools for everything).
+
+In one terminal (remember you need to be in the right folder so `monitor` can find the right `CMakeLists.txt` file), connect to the switch:
+
+```
+$ cd .../switch
+$ idf.py monitor --port /dev/esp-usb-serial0
+...
+--- esp-idf-monitor 1.4.0 on /dev/esp-usb-serial0 115200 ---
+--- Quit: Ctrl+] | Menu: Ctrl+T | Help: Ctrl+T followed by Ctrl+H ---
+...
+I (236) cpu_start: cpu freq: 160000000 Hz
+I (236) cpu_start: Application information:
+I (239) cpu_start: Project name:     switch
+I (244) cpu_start: App version:      6112f28-dirty
+I (250) cpu_start: Compile time:     Aug 12 2024 16:04:35
+I (256) cpu_start: ELF file SHA256:  b1cd45a21...
+I (261) cpu_start: ESP-IDF:          v5.2.2
+...
+I (510) espnow: esp-now Version: 2.5.1
+W (520) wifi:Haven't to connect to a suitable AP now!
+I (520) ESPNOW: espnow [version: 1.0] init
+I (520) espnow: mac: 64:e8:33:88:a6:20, version: 2
+I (530) espnow: Enable main task
+I (530) espnow: main task entry
+I (540) app_switch: started
+I (540) main_task: Returned from app_main()
+```
+
+**TODO:** what on earth does the warning `wifi:Haven't to connect to a suitable AP now!` mean?
+
+**Note:** `cpu freq` defaults to 160 MHz - in some places, I've seen it claimed that the ESP32C3 can run up to 240 MHz but if I open the _SDK Configuration Editor_ and search for `CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ`, the maximum shown frequency is 160 MHz.
+
+Then in another terminal terminal connect to the bulb:
+
+```
+$ idf.py monitor --port /dev/esp-usb-serial1
+...
+I (521) espnow: esp-now Version: 2.5.1
+W (521) wifi:Haven't to connect to a suitable AP now!
+I (531) ESPNOW: espnow [version: 1.0] init
+I (531) espnow: mac: 40:4c:ca:fa:f6:a8, version: 2
+I (541) espnow: Enable main task
+I (541) espnow: main task entry
+I (541) main_task: Returned from app_main()
+I (881) restart_func: num: 32, reason: 3, crash: 0
+```
+
+The follow the instructions from the example's [README](https://github.com/espressif/esp-now/blob/master/examples/coin_cell_demo/README.md#how-to-use-the-example):
+
+* Double click the `BOOT` button on the device, it will send the binding command.
+* Single click the `BOOT` button on the device, it will send the control command.
+* Long press (more than 1.5 seconds) the `BOOT` button on the device, it will send the unbinding command.
+
+I found the switch would consistently send the bind command on double pressing the boot button and output:
+
+```
+I (941770) app_switch: switch bind press
+```
+
+But the bulb would often show no sign of having seen the bind command, retrying or resetting the board would resolve things (I suspect resetting was never really necessary and just retrying should always eventually work). If everything went well then the buld board would output:
+
+```
+I (23534) espnow_ctrl: bind, esp_log_timestamp: 23534, timestamp: 1800554, rssi: -51, rssi: -55
+I (23534) app_bulb: bind, uuid: 64:e8:33:88:a6:20, initiator_type: 513
+```
+
+Despite ESP-NOW being a connection-oriented protocol (e.g. it knows to retransmit if the other side fails to receive a packet), neither side seemed very aware of the state of the other. E.g. the switch sends bind on double press and a switch update on single press but doesn't seem to maintain an awareness of what state its in or if the bind succeeded (I presume this is what the upcoming `ESP_EVENT_ESPNOW_CTRL_BIND_ERROR` changes, mentioned above, are about), e.g. it doesn't say something like "can't send switch status when in unbound state".
+
+Similarly, the bulb often seemed to miss unbind events. If everything worked properly, the switch would output:
+
+```
+I (1965190) app_switch: switch unbind press
+```
+
+And the bulb would output:
+
+```
+I (990717) app_bulb: unbind, uuid: 64:e8:33:88:a6:20, initiator_type: 513
+```
+
+Once bound, single presses on the switch's _BOOT_ button would cause it to output:
+
+```
+I (2231260) app_switch: switch send press
+I (2231270) app_switch: key status: 1
+```
+
+And the bulb would turn on (or off) its onboard LED and output:
+
+```
+I (1256717) app_bulb: app_bulb_ctrl_data_cb, initiator_attribute: 513, responder_attribute: 1, value: 1
+```
+
+Again the bulb would sometimes miss these messages.
+
+A neopixel or a richer set of LED behaviors (e.g. breathing when unbound or the other things that are possible with the `LEDC` mode of the [`espressif/led_indicator`](https://components.espressif.com/components/espressif/led_indicator) component) would make it clearer what's happening.
+
+Note: as with `screen` and `minicom`, I found that exiting `monitor` (with `ctrl-[`) could sometimes take quite a few seconds. And at other times would be near instantaneous - I've no idea why disconnecting took longer at some times than others.
+
+##### Update
+
+The original example set various `sdkconfig` items like `CONFIG_ESPNOW_CONTROL_RETRANSMISSION_TIMES` that aren't set in my `sdkconfig` files which are just in a completely default state.
+
+See the differences [here](examples/coin_cell_clean/sdkconfig-diffs).
+
+It turns out most of these are all set as a result of including the following line in the `sdkconfig.defaults` file of each part (`switch` and `bulb`):
+
+```
+CONFIG_ESPNOW_CONTROL_AUTO_CHANNEL_SENDING=y
+```
+
+This causes various things, like `CONFIG_ESPNOW_CONTROL_RETRANSMISSION_TIMES`, to be turned on (seach for `AUTO_CHANNEL_SENDING` in [`esp-now:Kconfig`](https://github.com/espressif/esp-now/blob/master/Kconfig)) and enables quite different behavior in [`esp-now:src/control/src/espnow_ctrl.c`](https://github.com/espressif/esp-now/blob/master/src/control/src/espnow_ctrl.c).
+
+The remaining differences are a result of the original code also setting `CONFIG_ESPNOW_LIGHT_SLEEP=y` which is only relevant if using the coin-cell button rather than a normal dev board (as it needs to sleep for a certain amount of time before sending in order to fully charge the capicitor that it needs to have enough power to handle the transmit step).
+
+##### Notes on opening newly created project in VS Code
+
+Open in VS Code and remember to run the "ESP-IDF: Add vscode Configuration Folder" task.
+
+When I tried to start OpenOCD, it failed with the following warning and errors:
+
+```
+WARNING: boards/esp32-wrover.cfg is deprecated, and may be removed in a future release.
+         If your board is ESP32-WROVER-KIT, use board/esp32-wrover-kit-1.8v.cfg instead.
+
+Info : auto-selecting first available session transport "jtag". To override use 'transport select <transport>'.
+
+Info : Listening on port 6666 for tcl connections
+Info : Listening on port 4444 for telnet connections
+
+x Error: unable to open ftdi device with description '*', serial '*' at bus location '*'
+
+x /home/ghawkins/.espressif/tools/openocd-esp32/v0.12.0-esp32-20240318/openocd-esp32/share/openocd/scripts/target/esp_common.cfg:9: Error: 
+at file "/home/ghawkins/.espressif/tools/openocd-esp32/v0.12.0-esp32-20240318/openocd-esp32/share/openocd/scripts/target/esp_common.cfg", line 9
+```
+
+Even though the plugin had correctly picked up the chip type as `esp32c3` (and displayed it in the bottom bar), it seems OpenOCD still thought the device was a generic classic ESP32 WROVER kit.
+
+I had to click the _EDP-IDF: Set Espressif Device Target_ icon and select `esp32c3` (it wasn't necessary to switch to another device and switch back, selecting the already selected device was enough). But this meant if cleared out the current build and I had to rebuild before flashing.
 
 TODO
 ----
