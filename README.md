@@ -924,6 +924,16 @@ I (106842) app_bulb: bind, uuid: 64:e8:33:88:a6:20, initiator_type: 513
 
 This would make sense if e.g. `espnow_ctrl` was only forwarding the event to the application layer if the device wasn't already bound but this didn't seem to be it, double clicking the switch while already bound seemingly randomly resulted in the one or two line output from the bulb.
 
+**Theory:**
+
+With a little bit more experimentation, I found there was far less packet loss if:
+
+* The board was lifted clear of its surroundings, i.e. not just lying amoung bits and pieces on my desk.
+* I kept my fingers well clear of the antenna - this sounds obvious but when using a board with a tiny onboard ceramic antenna it's easy to block the antenna while pressing the BOOT button.
+* Using a board where board designer has got [impedance matching](https://en.wikipedia.org/wiki/Impedance_matching) right - if the board is a no-name board from AliExpress and gets very hot during use then this is probably not the case.
+
+All these items are fairly obvious but easy to forget about.
+
 ##### Notes on opening newly created project in VS Code
 
 Open in VS Code and remember to run the "ESP-IDF: Add vscode Configuration Folder" task.
