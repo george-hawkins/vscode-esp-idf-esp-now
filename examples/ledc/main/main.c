@@ -8,14 +8,13 @@
 #include <inttypes.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
-#include "cmd_led_indicator.h"
+#include "led_indicator.h"
 #include "esp_idf_version.h"
 #include "esp_log.h"
 #include "led_indicator.h"
 
-#define GPIO_LED_PIN       CONFIG_EXAMPLE_GPIO_NUM
-#define GPIO_ACTIVE_LEVEL  CONFIG_EXAMPLE_GPIO_ACTIVE_LEVEL
-#define LEDC_LED_CHANNEL   CONFIG_EXAMPLE_LEDC_CHANNEL
+#define GPIO_LED_PIN       GPIO_NUM_8
+#define GPIO_ACTIVE_LEVEL  false
 
 static const char *TAG = "led_ledc";
 static led_indicator_handle_t led_handle = NULL;
@@ -110,33 +109,6 @@ blink_step_t const *led_mode[] = {
     [BLINK_MAX] = NULL,
 };
 
-#if CONFIG_EXAMPLE_ENABLE_CONSOLE_CONTROL
-static void led_cmd_cb(cmd_type_t cmd_type, uint32_t mode_index)
-{
-    switch (cmd_type) {
-    case START:
-        led_indicator_start(led_handle, mode_index);
-        ESP_LOGI(TAG, "start blink: %"PRIu32"", mode_index);
-        break;
-    case STOP:
-        led_indicator_stop(led_handle, mode_index);
-        ESP_LOGI(TAG, "stop blink: %"PRIu32"", mode_index);
-        break;
-    case PREEMPT_START:
-        led_indicator_preempt_start(led_handle, mode_index);
-        ESP_LOGI(TAG, "preempt start blink: %"PRIu32"", mode_index);
-        break;
-    case PREEMPT_STOP:
-        led_indicator_preempt_stop(led_handle, mode_index);
-        ESP_LOGI(TAG, "preempt stop blink: %"PRIu32"", mode_index);
-        break;
-    default:
-        ESP_LOGE(TAG, "unknown cmd type: %d", cmd_type);
-        break;
-    }
-}
-#endif
-
 void app_main(void)
 {
     led_indicator_ledc_config_t ledc_config = {
@@ -144,7 +116,7 @@ void app_main(void)
         .timer_inited = false,
         .timer_num = LEDC_TIMER_0,
         .gpio_num = GPIO_LED_PIN,
-        .channel = LEDC_LED_CHANNEL,
+        .channel = LEDC_CHANNEL_0,
     };
 
     const led_indicator_config_t config = {
@@ -157,14 +129,6 @@ void app_main(void)
     led_handle = led_indicator_create(&config);
     assert(led_handle != NULL);
 
-#if CONFIG_EXAMPLE_ENABLE_CONSOLE_CONTROL
-    cmd_led_indicator_t cmd_led_indicator = {
-        .cmd_cb = led_cmd_cb,
-        .mode_count = BLINK_MAX,
-    };
-
-    ESP_ERROR_CHECK(cmd_led_indicator_init(&cmd_led_indicator));
-#else
     while (1) {
         for (int i = 0; i < BLINK_MAX; i++) {
             led_indicator_start(led_handle, i);
@@ -175,5 +139,4 @@ void app_main(void)
             vTaskDelay(1000 / portTICK_PERIOD_MS);
         }
     }
-#endif
 }
