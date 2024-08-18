@@ -525,6 +525,8 @@ The current version of the ESP-IDF plugin seems to get confused by this situatio
 
 The center-top dropdown suggests you should select a kit (gcc or clangd based) for the project but just press escape (as selecting the target will select a board specific kit).
 
+**Update:** every time I open a ESP-IDF project, I'm asked to select a kit - it's the MS [CMake Tools extentension](https://marketplace.visualstudio.com/items?itemName=ms-vscode.cmake-tools) that's doing this. According to this GitHub [issue comment](https://github.com/espressif/vscode-esp-idf-extension/issues/664#issuecomment-1062809722), the ESP-IDF extension does not depend on CMake Tools extentension. So, you can disable it on a per-project basis (expand _Extensions_, right click on _CMake Tools_ and select _Disable (Workspace)_) or completely (right click and select _Disable_).
+
 Then set the device target to esp32c3 (or whatever's appropriate for your board), right click on the `sdkconfig` file and select _SDK Configuration Editor_ and search for "EXAMPLE_USE_COIN_CELL_BUTTON" and untick "Use coin cell button".
 
 Click the build button, the project pulls in the [_espressif/button_ component](https://components.espressif.com/components/espressif/button/) (that provides functions for detecting double clicks and the such like) and this component results in some deprecation warnings (about `ADC_ATTEN_DB_11`) but it seems fine to ignore these.
@@ -799,6 +801,8 @@ I (540) main_task: Returned from app_main()
 
 **TODO:** what on earth does the warning `wifi:Haven't to connect to a suitable AP now!` mean?
 
+**Answer:** who knows what this "unusual" piece of English is trying to communicate but it's output as a result of calling `espnow_init` - `espnow_init` wants to check it the device was connected to an AP prior to `espnow_init` being called, so it calls `esp_wifi_sta_get_ap_info` to see if it returns `ESP_OK` (which would indicate that the device is connected to an AP). Unfortunately, in the case where the device is not connected to an AP, the `esp_wifi_sta_get_ap_info` not only returns `ESP_ERR_WIFI_NOT_CONNECT` but also always prints this warning. The ESP-IDF team have been asked if they'd remove the warning and leave it up to the caller to decide whether to print something or not but they've said they're keeping the warning (see this [comment](https://github.com/espressif/esp-idf/issues/12219#issuecomment-1976342932)).
+
 **Note:** `cpu freq` defaults to 160 MHz - in some places, I've seen it claimed that the ESP32C3 can run up to 240 MHz but if I open the _SDK Configuration Editor_ and search for `CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ`, the maximum shown frequency is 160 MHz.
 
 Then in another terminal terminal connect to the bulb:
@@ -864,7 +868,7 @@ I (1256717) app_bulb: app_bulb_ctrl_data_cb, initiator_attribute: 513, responder
 
 Again the bulb would sometimes miss these messages.
 
-A neopixel or a richer set of LED behaviors (e.g. breathing when unbound or the other things that are possible with the `LEDC` mode of the [`espressif/led_indicator`](https://components.espressif.com/components/espressif/led_indicator) component) would make it clearer what's happening.
+A neopixel or a richer set of LED behaviors (e.g. breathing when unbound or the other things that are possible with the `LEDC` mode of the [`espressif/led_indicator`](https://components.espressif.com/components/espressif/led_indicator) component, see example below) would make it clearer what's happening.
 
 Note: as with `screen` and `minicom`, I found that exiting `monitor` (with `ctrl-[`) could sometimes take quite a few seconds. And at other times would be near instantaneous - I've no idea why disconnecting took longer at some times than others.
 
@@ -958,6 +962,30 @@ at file "/home/ghawkins/.espressif/tools/openocd-esp32/v0.12.0-esp32-20240318/op
 Even though the plugin had correctly picked up the chip type as `esp32c3` (and displayed it in the bottom bar), it seems OpenOCD still thought the device was a generic classic ESP32 WROVER kit.
 
 I had to click the _EDP-IDF: Set Espressif Device Target_ icon and select `esp32c3` (it wasn't necessary to switch to another device and switch back, selecting the already selected device was enough). But this meant if cleared out the current build and I had to rebuild before flashing.
+
+### LED example
+
+You can find the _espressif/led_indicator_ component in the ESP-IDF component registry.
+
+I downloaded one of the examples like so:
+
+```
+$ idf.py create-project-from-example 'espressif/led_indicator^0.9.3:indicator/ledc'
+```
+
+This example uses [LEDC](https://docs.espressif.com/projects/esp-idf/en/stable/esp32/api-reference/peripherals/ledc.html), if plain on and off blinking (without any fading in and out) is enough, see the GPIO example.
+
+Oddly, the LEDC example depends on both `led_indicator` (expected) and `cmd_led_indicator` (unexpected). You can find `cmd_led_indicator` in the Espressif `esp-iot-solution` repo [here](https://github.com/espressif/esp-iot-solution/tree/master/examples/indicator/components/cmd_led_indicator) but its not available via the ESP Component Registry.
+
+So, an initial attempt to set the chip type fails due to this.
+
+I resolved this issue (you can see the changes [here](https://github.com/george-hawkins/vscode-esp-idf-esp-now/commit/158b951158b151850fec38f691d1a684e15a811d)) and I also:
+
+* Set `GPIO_LED_PIN` to pin 8 to match my board.
+* Set `GPIO_ACTIVE_LEVEL` to false to indicate that the LED on my board is on when its GPIO pin is LOW (you'd use true for HIGH).
+* Hardcoded the LEDC channel to `LEDC_CHANNEL_0` (as the timer is already harcoded, I don't know why the channel, in contrast, was configurable).
+
+I made these changes in `main.c` rather than bothering with `sdkconfig`.
 
 TODO
 ----
