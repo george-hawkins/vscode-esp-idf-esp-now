@@ -253,7 +253,15 @@ Info : Listening on port 3333 for gdb connections
 
 I killed it and switched the flash method from _UART_ to _JTAG_ and flashing worked.
 
-This meant, I could now set breakpoints in `blink_example_main.c`, select _Run and Debug_ and just click the _Start Debugging_ icon shown to the left of the dropdown showing "Launch". Everything worked as expected - super!
+This meant, I could now set breakpoints in `blink_example_main.c`, select _Run and Debug_ and just click the _ESP-IDF: Debug_ button in the bottom bar. Everything worked as expected - super!
+
+When not using the ESP-IDF plugin, the normal way to debug is to use the _Run and Debug_ button (left-hand gutter).
+
+Using the _ESP-IDF: Debug_ button actually just sets up the classic _Run and Debug_ for you - it flips the _Start Debugging_ dropdown to _Eclipse CDT GDB Adapter_ and creates a suitable `launch.json` file.
+
+If you haven't used _ESP-IDF: Debug_ and click the normal _Run and Debug_ button, things won't have been set up and instead, you see a link to "create a launch.json file", click it (it just creates the same _Eclipse CDT GDB Adapter_ `launch.json` as the other approach) and then click the _Start Debugging_ button.
+
+You can have the monitor open at the same time as debugging - though I found this often caused OpenOCD to crash, things seem to work best if one opens the monitor before trying to debug things (which probably makes sense as the monitor usually resets the board).
 
 Upgrade - automatic and manual
 ------------------------------
@@ -336,8 +344,6 @@ I plugged in my board and oddly it wasn't auto-detected so, I had to click the _
 Then I click the _Build_ button (spanner icon in bottom bar) and then clicked the _Flash_ button (initially, the OpenOCD step failed but it was because somehow VS Code had already started an OpenOCD instance, that had taken the 6666 port, and it failed on trying to start a second instance - I quit VS Code, killed the surviving OpenOCD process and, on restarting VS Code, all worked fine).
 
 I flashed the code to a second ESP32C3 board.
-
-Note: to debug, I found that rather than the debug icon in the bottom bar, I had to use the normal _Run and Debug_ button (left-hand gutter), click the link to "create a launch.json file", select ESP-IDF and then I could run the resulting "ESP-IDF Debug: Launch" launch configuration.
 
 I assumed, I'd be able to open the monitor and type stuff and have it broadcast and picked up by the other board. But typing into a serial connection created via USB didn't work (see below for explanation). Instead, I had to connect a UART-to-USB converter (I used this [one](https://www.aliexpress.com/item/1005004399796277.html) from WeAct) to pins 21 (TX) and 20 (RX) of the board.
 
