@@ -9,6 +9,7 @@
 #include "led_status.hpp"
 #include <cstdint>
 #include "esp_task_wdt.h" // TODO: remove
+#include "memory.hpp"
 
 
 static const char* TAG = "experiment";
@@ -156,6 +157,8 @@ extern "C" int app_main(void) {
     // ESP_LOGI(TAG, "MAC address: " MACSTR "", MAC2STR(mac));
 
     app_reset_init();
+
+    memory_dump();
 
     // For some reason, I was getting failures in `esp_task_wdt_reset` due to it failing to find the relevant task.
     // But it seems to be present at this point (status == 0x0000) whereas ESP_ERR_NOT_FOUND = 0x0105.
