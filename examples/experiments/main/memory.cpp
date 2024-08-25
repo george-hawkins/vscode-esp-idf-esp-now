@@ -162,6 +162,7 @@ void memory_dump() {
 
     // I'm not quite sure what this function (defined above) is showing - the tasks don't have their own individual heaps do they? Just their own stacks (covered by vTaskList).
     // Features needed by this fn only available if CONFIG_HEAP_TASK_TRACKING=y in sdkconfig.defaults
+    // Is a task associated with each malloc and you can determine who alloc'd how much.
     dump_per_task_heap_info();
 
     printf("\n----\n\n");
@@ -171,6 +172,7 @@ void memory_dump() {
 
     printf("\n----\n\n");
 
+    // All heaps support MALLOC_CAP_DEFAULT, MALLOC_CAP_32BIT and MALLOC_CAP_8BIT (grep for MEM_COMMON_CAPS under components/heap/port in ESP-IDF repo).
     heap_caps_print_heap_info(MALLOC_CAP_DEFAULT);
 
     printf("\n----\n\n");
@@ -179,4 +181,13 @@ void memory_dump() {
     std::printf("free heap size is %" PRIu32 ", minimum %" PRIu32 "\n", esp_get_free_heap_size(), esp_get_minimum_free_heap_size());
 
     printf("\n----\n\n");
+
+    // TODO: heap_caps_print_heap_info doesn't print the nice heap name that `foo` doesn, e.g. RTCRAM.
+    //  Nice would be "name: RAM, allocated: 128KiB, used: XKiB, free: YKiB, min free: ZKiB, largest free block: QKiB" // Very small largest free block implies Swiss cheese.
+    // TODO: work out why `foo` prints out five enties (mysterious 3FCA0000 one) while boot-up sequence and `heap_caps_print_heap_info` only print 4.
+    // TODO: create task with big _stack_ - does this fn, i.e. `memory_dump` show who lost the KiBs involved (as well as who gained them, i.e. the new task).
+    //  Stacks aren't alloc'd from heap (or are they?!?) so, try and find who loses space to new task stacks and print this total space and how much is used and how much free for further stacks.
+    // TODO: call this function from a function that has a huge stack frame, what values reflect the difference between this and calling from a fn with little or no frame?
+    // TODO: create a task that mallocs nothing and one that mallocs something, is it just the second one that shows up in dump_per_task_heap_info?
+    // TODO: once done, see if you can remove stuff from sdkconfig.defaults
 }
