@@ -10,6 +10,7 @@
 #include <cstdint>
 #include "esp_task_wdt.h" // TODO: remove
 #include "memory.hpp"
+#include "utils.hpp"
 
 
 static const char* TAG = "experiment";
@@ -129,9 +130,37 @@ void app_reset_init() {
     ESP_LOGI(TAG, "Total reset count: %lu", reset_record.total);
 
     if (reset_record.total != reset_record.since_bad) {
+        //  0 ESP_RST_UNKNOWN    - Reset reason can not be determined
+        //  1 ESP_RST_POWERON    - Reset due to power-on event
+        //  2 ESP_RST_EXT        - Reset by external pin (not applicable for ESP32)
+        //  3 ESP_RST_SW         - Software reset via esp_restart
+        //  4 ESP_RST_PANIC      - Software reset due to exception/panic
+        //  5 ESP_RST_INT_WDT    - Reset (software or hardware) due to interrupt watchdog
+        //  6 ESP_RST_TASK_WDT   - Reset due to task watchdog
+        //  7 ESP_RST_WDT        - Reset due to other watchdogs
+        //  8 ESP_RST_DEEPSLEEP  - Reset after exiting deep sleep mode
+        //  9 ESP_RST_BROWNOUT   - Brownout reset (software or hardware)
+        // 10 ESP_RST_SDIO       - Reset over SDIO
+        // 11 ESP_RST_USB        - Reset by USB peripheral
+        // 12 ESP_RST_JTAG       - Reset by JTAG
+        // 13 ESP_RST_EFUSE      - Reset due to efuse error
+        // 14 ESP_RST_PWR_GLITCH - Reset due to power glitch detected
+        // 15 ESP_RST_CPU_LOCKUP - Reset due to CPU lock up
         ESP_LOGI(TAG, "Last bad reset reason: %d", reset_record.reason);
         ESP_LOGI(TAG, "Resets since last bad reset: %lu", reset_record.since_bad);
     }
+}
+
+static void example_task(void *args)
+{
+    char* str_val = (char*) malloc(32768);
+    str_val[0] = 'a';
+    str_val[32767] = 'b';
+    memory_dump();
+    std::printf("%c %c\n", str_val[0], str_val[32767]);
+    free(str_val);
+    vTaskDelay(pdMS_TO_TICKS(4000));
+    vTaskDelete(nullptr);
 }
 
 extern "C" int app_main(void) {
@@ -158,7 +187,9 @@ extern "C" int app_main(void) {
 
     app_reset_init();
 
-    memory_dump();
+    // There's no #define for a default priority, i.e. one that's not particularly low (1 or less - main and IDLE)
+    // or particularly high (22 or more - esp_timer and wifi). However, 5 seems to be treated as the de-facto medium priority value.
+    xTaskCreate(&example_task, "example_task", 8192, nullptr, 5, nullptr);
 
     // For some reason, I was getting failures in `esp_task_wdt_reset` due to it failing to find the relevant task.
     // But it seems to be present at this point (status == 0x0000) whereas ESP_ERR_NOT_FOUND = 0x0105.
