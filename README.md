@@ -533,6 +533,8 @@ The center-top dropdown suggests you should select a kit (gcc or clangd based) f
 
 **Update:** every time I open a ESP-IDF project, I'm asked to select a kit - it's the MS [CMake Tools extentension](https://marketplace.visualstudio.com/items?itemName=ms-vscode.cmake-tools) that's doing this. According to this GitHub [issue comment](https://github.com/espressif/vscode-esp-idf-extension/issues/664#issuecomment-1062809722), the ESP-IDF extension does not depend on CMake Tools extentension. So, you can disable it on a per-project basis (expand _Extensions_, right click on _CMake Tools_ and select _Disable (Workspace)_) or completely (right click and select _Disable_).
 
+Note: I have two CMake extensions - _CMake Tools_, which was installed as part of the Microsoft _C/C++ Extension Pack_, and _CMake_ which seems to have been abandoned (the last release was in 2017). I'm not sure what installed the second of these two but it's probably best avoided on a clean install.
+
 Then set the device target to esp32c3 (or whatever's appropriate for your board), right click on the `sdkconfig` file and select _SDK Configuration Editor_ and search for "EXAMPLE_USE_COIN_CELL_BUTTON" and untick "Use coin cell button".
 
 Click the build button, the project pulls in the [_espressif/button_ component](https://components.espressif.com/components/espressif/button/) (that provides functions for detecting double clicks and the such like) and this component results in some deprecation warnings (about `ADC_ATTEN_DB_11`) but it seems fine to ignore these.
